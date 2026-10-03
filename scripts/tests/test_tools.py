@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+import re
 import unittest
 from unittest.mock import patch
 import json
@@ -141,6 +142,53 @@ class DarkDesignTests(unittest.TestCase):
         for key in ("terminal.ansiGreen", "terminal.ansiBrightGreen", "terminal.ansiCyan", "terminal.ansiBrightCyan"):
             red, green, blue, alpha = self.checker.parse_hex(ansi[key])
             self.assertGreater(green, red, key)
+
+    def token_foregrounds(self):
+        found = []
+        for rule in self.theme["tokenColors"]:
+            foreground = rule.get("settings", {}).get("foreground")
+            if isinstance(foreground, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", foreground):
+                found.append(foreground)
+        return found
+
+    def test_eye_comfort_keeps_text_soft_not_glaring(self):
+        ratio = self.checker.contrast(self.colors["editor.foreground"], self.colors["editor.background"])
+        self.assertGreaterEqual(ratio, 6.0, "正文对比过低")
+        self.assertLessEqual(ratio, 9.0, "正文对比过刺眼")
+        for foreground in self.token_foregrounds():
+            red, green, blue, _ = self.checker.parse_hex(foreground)
+            lightness = (max(red, green, blue) + min(red, green, blue)) / 510
+            self.assertLessEqual(lightness, 0.87, foreground)
+
+
+class LightDesignTests(unittest.TestCase):
+    def setUp(self):
+        self.checker = load_script("check_contrast")
+        self.theme = json.loads((ROOT / "themes/sakura-macaron-light.json").read_text(encoding="utf-8"))
+        self.colors = self.theme["colors"]
+
+    def test_syntax_foregrounds_are_warm_and_distinguishable(self):
+        foregrounds = []
+        for rule in self.theme["tokenColors"]:
+            foreground = rule.get("settings", {}).get("foreground")
+            if isinstance(foreground, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", foreground):
+                foregrounds.append(foreground.upper())
+        self.assertGreaterEqual(len(set(foregrounds)), 8)
+        for value in set(foregrounds):
+            red, green, blue, _ = self.checker.parse_hex(value)
+            warm = red > green or (green > red and red > blue)
+            self.assertTrue(warm, f"{value} 不是暖色系（红/橘/黄/橄榄/暖棕梅）")
+
+    def test_bracket_levels_are_warm_and_visible(self):
+        surfaces = self.checker.syntax_surfaces(self.colors)
+        for index in range(1, 7):
+            key = f"editorBracketHighlight.foreground{index}"
+            foreground = self.colors[key]
+            red, green, blue, alpha = self.checker.parse_hex(foreground)
+            self.assertEqual(alpha, 255, key)
+            self.assertTrue(red > green or (green > red and red > blue), key)
+            for background in surfaces.values():
+                self.assertGreaterEqual(self.checker.contrast(foreground, background), 4.5, key)
 
 
 class RegistryUpdateTests(unittest.TestCase):
