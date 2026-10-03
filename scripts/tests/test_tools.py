@@ -95,6 +95,54 @@ class ContrastTests(unittest.TestCase):
             self.assertEqual(report["checked"]["semantic"], len(theme["semanticTokenColors"]) * 6)
 
 
+class DarkDesignTests(unittest.TestCase):
+    def setUp(self):
+        self.checker = load_script("check_contrast")
+        self.theme = json.loads((ROOT / "themes/sakura-macaron-dark.json").read_text(encoding="utf-8"))
+        self.colors = self.theme["colors"]
+
+    def test_surface_layers_and_modern_variants_stay_consistent(self):
+        for key in ("editorGutter.background", "tab.activeBackground", "modernEditorTab.activeBackground", "modernTab.activeBackground"):
+            self.assertEqual(self.colors[key], self.colors["editor.background"], key)
+        self.assertEqual(self.colors["modernUI.shellBackground"], self.colors["titleBar.activeBackground"])
+        self.assertEqual(self.colors["modernUI.inactiveShellBackground"], self.colors["titleBar.inactiveBackground"])
+        self.assertEqual(self.colors["modernActivityBar.inactiveBackground"], self.colors["activityBar.background"])
+        for key in ("editor.background", "sideBar.background", "activityBar.background", "statusBar.background"):
+            red, green, blue, alpha = self.checker.parse_hex(self.colors[key])
+            self.assertGreater(red, green, key)
+            self.assertGreater(blue, green, key)
+            self.assertEqual(alpha, 255, key)
+
+    def test_all_six_bracket_colors_are_visible_on_syntax_surfaces(self):
+        for index in range(1, 7):
+            key = f"editorBracketHighlight.foreground{index}"
+            foreground = self.colors[key]
+            self.assertEqual(self.checker.parse_hex(foreground)[3], 255, key)
+            for background in self.checker.syntax_surfaces(self.colors).values():
+                self.assertGreaterEqual(self.checker.contrast(foreground, background), 4.5, key)
+
+    def test_status_and_button_interaction_text_remains_readable(self):
+        for key, background in self.colors.items():
+            if not key.startswith("statusBarItem.") or not key.endswith("Background"):
+                continue
+            foreground = self.colors.get(key.removesuffix("Background") + "Foreground", self.colors["statusBar.foreground"])
+            surface = self.checker.over_base(background, self.colors["statusBar.background"])
+            self.assertGreaterEqual(self.checker.contrast(self.checker.over_base(foreground, surface), surface), 4.5, key)
+        for foreground, background in (("button.foreground", "button.hoverBackground"),
+                                      ("button.secondaryForeground", "button.secondaryHoverBackground")):
+            self.assertGreaterEqual(self.checker.contrast(self.colors[foreground], self.colors[background]), 4.5, background)
+
+    def test_terminal_ansi_roles_are_not_collapsed_to_pink(self):
+        ansi = {key: value for key, value in self.colors.items() if key.startswith("terminal.ansi")}
+        self.assertEqual(len(set(ansi.values())), 16)
+        for key in ("terminal.ansiBlue", "terminal.ansiBrightBlue"):
+            red, green, blue, alpha = self.checker.parse_hex(ansi[key])
+            self.assertGreater(blue, red, key)
+        for key in ("terminal.ansiGreen", "terminal.ansiBrightGreen", "terminal.ansiCyan", "terminal.ansiBrightCyan"):
+            red, green, blue, alpha = self.checker.parse_hex(ansi[key])
+            self.assertGreater(green, red, key)
+
+
 class RegistryUpdateTests(unittest.TestCase):
     def test_failed_anchor_update_preserves_both_snapshots(self):
         updater = load_script("update_registry")
