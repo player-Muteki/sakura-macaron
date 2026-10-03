@@ -4,5 +4,8 @@ src/**
 .gitignore
 .github/**
 scripts/**
+build/**
+docs/**
+task_plan.md
 *.vsix
 **/*.map
