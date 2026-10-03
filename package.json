@@ -1,0 +1,55 @@
+{
+  "name": "sakura-macaron",
+  "displayName": "Sakura Macaron",
+  "description": "樱花马卡龙配色主题 — 暗色灰蓝与亮色樱粉的完整独立主题，含语法高亮、Git、终端、Diff、调试与 Chat 全面配色。",
+  "version": "0.1.0",
+  "publisher": "player-muteki",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/player-Muteki/sakura-macaron.git"
+  },
+  "homepage": "https://github.com/player-Muteki/sakura-macaron#readme",
+  "bugs": {
+    "url": "https://github.com/player-Muteki/sakura-macaron/issues"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "keywords": [
+    "theme",
+    "color-theme",
+    "dark",
+    "light",
+    "sakura",
+    "macaron",
+    "樱花",
+    "马卡龙",
+    "pink"
+  ],
+  "galleryBanner": {
+    "color": "#C45A6D",
+    "theme": "dark"
+  },
+  "icon": "icon.png",
+  "contributes": {
+    "themes": [
+      {
+        "label": "Sakura Macaron Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/sakura-macaron-dark.json"
+      },
+      {
+        "label": "Sakura Macaron Light",
+        "uiTheme": "vs",
+        "path": "./themes/sakura-macaron-light.json"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^4.0.0"
+  }
+}
