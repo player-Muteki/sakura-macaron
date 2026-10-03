@@ -1,5 +1,7 @@
 # Sakura Macaron 主题要素差距调研报告
 
+> **历史资料：0.1.1 之前的调研记录，不代表当前状态。** 下文的键数、缺口和竞品比较保留用于追溯，未按当前快照重新验证。当前基准、验证范围和维护流程见 [维护指南](maintenance.md)，请勿将下文的 1079 项混用为当前校验基准。
+
 > 基准：本机安装的 VS Code 颜色注册表（`out/vs/workbench/workbench.desktop.main.js` 中全部 `registerColor` 调用 + workbench CSS 里的 `--vscode-*` 变量），共 **1079** 个颜色 id。
 
 > 对照物：官方 GitHub Dark/Light（183–245 色）、One Dark Pro（222 色 / 275 条 token 规则）、VS Code 2026 默认主题（291/298 色）。

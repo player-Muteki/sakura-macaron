@@ -1,7 +1,7 @@
 {
   "name": "sakura-macaron",
   "displayName": "Sakura Macaron",
-  "description": "樱花马卡龙配色主题 — 暗色灰蓝与亮色樱粉的完整独立主题。覆盖 992 个工作台颜色键、74 条 TextMate 规则与 74 项语义高亮，含 Modern UI、AI Chat、Git、终端、Diff、调试与测试配色。",
+  "description": "樱花马卡龙配色主题 — 暗色灰蓝与亮色樱粉的完整独立主题。固定基准覆盖 992 个工作台颜色键、80 条 TextMate 规则与 94 项语义高亮，含 Modern UI、AI Chat、Git、终端、Diff、调试与测试配色。",
   "version": "0.1.1",
   "publisher": "player-muteki",
   "license": "MIT",
@@ -60,9 +60,14 @@
   },
   "scripts": {
     "check": "node scripts/check-theme.mjs && node scripts/check-schema.mjs",
-    "check:contrast": "python3 scripts/check_contrast.py --strict",
-    "build": "python3 scripts/extract_registry.py && python3 scripts/derive_colors.py && python3 scripts/build_themes.py && python3 scripts/build_tokens.py",
-    "vscode:prepublish": "npm run check"
+    "check:contrast": "python scripts/check_contrast.py --strict",
+    "check:generated": "python scripts/build_themes.py --check && python scripts/build_tokens.py --check",
+    "build": "python scripts/build_themes.py",
+    "registry:update": "python scripts/update_registry.py",
+    "test": "node --test scripts/tests/validation.test.mjs && python -m unittest discover -s scripts/tests -p test_*.py",
+    "verify": "npm run check && npm run check:generated && npm run check:contrast && npm test",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "npm run verify"
   },
   "devDependencies": {
     "@vscode/vsce": "^4.0.0"

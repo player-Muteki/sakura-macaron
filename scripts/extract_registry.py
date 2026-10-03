@@ -1,23 +1,16 @@
 #!/usr/bin/env python3
-"""从 VS Code 的 workbench bundle 中抽取颜色注册表。
+"""从本机 VS Code bundle 注册调用和过滤后的 CSS 引用抽取候选颜色快照。
 
-输出 build/registry.json：
-{
-  "<color.id>": {
-     "var": "ae",                    # 注册时用的局部变量名
-     "dark": "<表达式原文>",
-     "light": "<表达式原文>",
-     "raw": "<完整默认值参数原文>"
-  }
-支持三种默认值形态：
-  1. {dark: ..., light: ..., hcDark: ..., hcLight: ...}
-  2. "sideBar.background"          —— 引用另一个颜色 id
-  3. Ci(Po,.15) / DR(x,.2) / t9    —— 变量或表达式
+默认输出 data/registry.json，包含 source 元数据和带 provenance 的 colors。
+单独探索时应显式指定 --output；维护固定基准请使用 update_registry.py。
 """
 import json
 import os
 import re
 import sys
+import argparse
+import hashlib
+from pathlib import Path
 
 BUNDLE_CANDIDATES = [
     os.environ.get("VSCODE_PATH", "") + "/out/vs/workbench/workbench.desktop.main.js",
@@ -28,8 +21,16 @@ BUNDLE_CANDIDATES = [
 ]
 
 
-def find_bundle() -> str:
-    for c in BUNDLE_CANDIDATES:
+def find_bundle(root=None) -> str:
+    explicit = root or os.environ.get("VSCODE_PATH")
+    candidates = [str(Path(explicit) / "out/vs/workbench/workbench.desktop.main.js")] if explicit else BUNDLE_CANDIDATES[1:]
+    if not explicit:
+        for variable in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
+            if os.environ.get(variable):
+                base = Path(os.environ[variable])
+                for suffix in ("Programs/Microsoft VS Code/resources/app", "Microsoft VS Code/resources/app"):
+                    candidates.append(str(base / suffix / "out/vs/workbench/workbench.desktop.main.js"))
+    for c in candidates:
         if c and os.path.isfile(c):
             return c
     sys.exit("找不到 VS Code bundle，请设置 $VSCODE_PATH")
@@ -56,6 +57,8 @@ def split_args(src: str, start: int) -> list[str]:
             depth += 1
             cur.append(ch)
         elif ch in ")]}":
+            if depth == 0:
+                break
             depth -= 1
             cur.append(ch)
         elif ch == "," and depth == 0:
@@ -83,19 +86,26 @@ def parse_obj(expr: str) -> dict:
 
 
 def main() -> None:
-    bundle = find_bundle()
+    parser = argparse.ArgumentParser(description="显式更新固定版本的注册表快照；日常构建不需要 VS Code")
+    parser.add_argument("--vscode-path")
+    parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[1] / "data/registry.json")
+    options = parser.parse_args()
+    bundle = find_bundle(options.vscode_path)
     src = open(bundle, encoding="utf8", errors="ignore").read()
-    helper = re.search(r"function (\w+)\([^)]*\)\{return \w+\.registerColor\(", src).group(1)
+    match = re.search(r"function ([\w$]+)\([^)]*\)\{return [\w$]+\.registerColor\(", src)
+    if not match:
+        sys.exit("无法识别 registerColor 包装函数；请更新解析器，未写入快照")
+    helper = match.group(1)
 
     registry = {}
     # 有的注册没有赋值给局部变量；变量名可能含 `$`，因此用 [\w$]+
-    for m in re.finditer(r"(?:([\w$]+)=)?" + helper + r'\("([a-zA-Z0-9_.]+)",', src):
+    for m in re.finditer(r"(?<![\w$])(?:([\w$]+)=)?" + re.escape(helper) + r'\("([a-zA-Z0-9_.]+)",', src):
         var, cid = m.group(1), m.group(2)
         args = split_args(src, m.end())
         if not args:
             continue
         raw = args[0]
-        entry = {"var": var, "raw": raw}
+        entry = {"var": var, "raw": raw, "provenance": "registration"}
         if raw.startswith("{"):
             obj = parse_obj(raw)
             entry["dark"] = obj.get("dark") or obj.get("light") or obj.get("hcDark") or ""
@@ -136,11 +146,26 @@ def main() -> None:
                if "." in c and not any(re.search(p, c) for p in non_color)}
 
     for cid in sorted(css_ids - set(registry)):
-        registry[cid] = {"var": None, "raw": None, "dark": None, "light": None}
+        registry[cid] = {"var": None, "raw": None, "dark": None, "light": None, "provenance": "css-reference"}
 
-    out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build", "registry.json")
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    json.dump(registry, open(out, "w"), ensure_ascii=False, indent=1, sort_keys=True)
+    if not registry:
+        sys.exit("注册表为空；未写入快照")
+    app = Path(bundle).parents[3]
+    package = json.loads((app / "package.json").read_text(encoding="utf-8"))
+    product = json.loads((app / "product.json").read_text(encoding="utf-8"))
+    css_hash = hashlib.sha256()
+    for css in sorted((app / "out/vs").rglob("*.css")):
+        css_hash.update(css.relative_to(app).as_posix().encode())
+        css_hash.update(css.read_bytes())
+    snapshot = {"source": {
+        "version": package["version"], "commit": product["commit"],
+        "bundleSha256": hashlib.sha256(Path(bundle).read_bytes()).hexdigest(),
+        "cssSha256": css_hash.hexdigest(),
+        "method": "registerColor calls plus filtered CSS color references",
+    }, "colors": dict(sorted(registry.items()))}
+    out = options.output
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"注册表 {len(registry)} 个颜色 id -> {out}")
 
 

@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEMES = os.path.join(HERE, "themes")
@@ -20,74 +21,74 @@ THEMES = os.path.join(HERE, "themes")
 PALETTE = {
     "dark": {
         "fg": "#CCCCCC",
-        "comment": "#9B8A9E",
-        "keyword": "#87A3D6",
-        "func": "#CBA8B9",
-        "string": "#85B59A",
-        "regexp": "#A3CBA8",
+        "comment": "#CEC6CF",
+        "keyword": "#B7C8E6",
+        "func": "#DAC0CD",
+        "string": "#B0CFBD",
+        "regexp": "#ACD0B1",
         "number": "#F2D199",
-        "type": "#E27E7E",
-        "const": "#D6A461",
-        "punctuation": "#9B8A9E",
-        "operator": "#A3B1D6",
-        "tag": "#87A3D6",
-        "attr": "#9B8A9E",
-        "invalid": "#C25B5B",
-        "heading": "#87A3D6",
-        "link": "#87A3D6",
-        "quote": "#9B8A9E",
-        "added": "#85B59A",
-        "removed": "#E27E7E",
-        "changed": "#D6A461",
-        "untracked": "#85B59A",
-        "namespace": "#CBA8B9",
+        "type": "#F0BBBB",
+        "const": "#E4C295",
+        "punctuation": "#CEC6CF",
+        "operator": "#BDC7E1",
+        "tag": "#B7C8E6",
+        "attr": "#CEC6CF",
+        "invalid": "#E7BDBD",
+        "heading": "#B7C8E6",
+        "link": "#B7C8E6",
+        "quote": "#CEC6CF",
+        "added": "#B0CFBD",
+        "removed": "#F0BBBB",
+        "changed": "#E4C295",
+        "untracked": "#B0CFBD",
+        "namespace": "#DAC0CD",
         "decorator": "#F2D199",
-        "parameter": "#CBA8B9",
-        "property": "#9B8A9E",
+        "parameter": "#DAC0CD",
+        "property": "#CEC6CF",
         "enumMember": "#F2D199",
         "bracket1": "#F2D199",
-        "bracket2": "#C45A6D",
-        "bracket3": "#87A3D6",
-        "bracket4": "#85B59A",
-        "bracket5": "#CBA8B9",
-        "bracket6": "#D6A461",
-        "label": "#F2D199",
+        "bracket2": "#E7BDC5",
+        "bracket3": "#B7C8E6",
+        "bracket4": "#B0CFBD",
+        "bracket5": "#DAC0CD",
+        "bracket6": "#E4C295",
+        "label": "#F2D199"
     },
     "light": {
         "fg": "#3A3132",
-        "comment": "#6A8A76",
-        "keyword": "#C84B5D",
-        "func": "#327A85",
-        "string": "#6B965C",
-        "regexp": "#5B8A4E",
-        "number": "#D8823B",
-        "type": "#875C96",
-        "const": "#C07A3A",
-        "punctuation": "#BFA4AE",
-        "operator": "#C45A6D",
-        "tag": "#C84B5D",
-        "attr": "#6A8A76",
+        "comment": "#495F51",
+        "keyword": "#983947",
+        "func": "#28626A",
+        "string": "#44603B",
+        "regexp": "#416237",
+        "number": "#7F4D23",
+        "type": "#704C7C",
+        "const": "#7D4F26",
+        "punctuation": "#63555A",
+        "operator": "#8D414E",
+        "tag": "#983947",
+        "attr": "#495F51",
         "invalid": "#7E2A3C",
-        "heading": "#C45A6D",
-        "link": "#C45A6D",
-        "quote": "#6A8A76",
-        "added": "#6B965C",
-        "removed": "#C07A3A",
-        "changed": "#C07A3A",
-        "untracked": "#6B965C",
-        "namespace": "#327A85",
-        "decorator": "#D8823B",
-        "parameter": "#327A85",
-        "property": "#6A8A76",
-        "enumMember": "#C07A3A",
-        "bracket1": "#C07A3A",
+        "heading": "#8D414E",
+        "link": "#8D414E",
+        "quote": "#495F51",
+        "added": "#44603B",
+        "removed": "#9F314C",
+        "changed": "#7D4F26",
+        "untracked": "#44603B",
+        "namespace": "#28626A",
+        "decorator": "#7F4D23",
+        "parameter": "#28626A",
+        "property": "#495F51",
+        "enumMember": "#7D4F26",
+        "bracket1": "#7D4F26",
         "bracket2": "#7E2A3C",
-        "bracket3": "#C84B5D",
-        "bracket4": "#6B965C",
-        "bracket5": "#327A85",
-        "bracket6": "#875C96",
-        "label": "#D8823B",
-    },
+        "bracket3": "#983947",
+        "bracket4": "#44603B",
+        "bracket5": "#28626A",
+        "bracket6": "#704C7C",
+        "label": "#7F4D23"
+    }
 }
 
 # --------------------------------------------------------------------------
@@ -382,7 +383,7 @@ def main():
     HEX = re.compile(r"^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$")
     for kind, fname in (("dark", "sakura-macaron-dark.json"), ("light", "sakura-macaron-light.json")):
         path = os.path.join(THEMES, fname)
-        theme = json.load(open(path))
+        theme = json.loads(Path(path).read_text(encoding="utf-8"))
         tokens, sem = build(kind)
         bad = [r["scope"] for r in tokens
                if not HEX.match(r["settings"].get("foreground", "#000000"))]
@@ -393,10 +394,12 @@ def main():
         print(f"{kind}: tokenColors {len(tokens)} 条规则 / {n_scope} scope，"
               f"semanticTokenColors {len(sem)} 条")
         if check:
+            if theme.get("tokenColors") != tokens or theme.get("semanticTokenColors") != sem:
+                sys.exit(f"{kind}: 高亮产物过期，请运行 npm run build")
             continue
         theme["tokenColors"] = tokens
         theme["semanticTokenColors"] = sem
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
             json.dump(theme, f, ensure_ascii=False, indent=2)
             f.write("\n")
     if not check:

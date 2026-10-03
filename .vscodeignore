@@ -6,6 +6,10 @@ src/**
 scripts/**
 build/**
 docs/**
+data/**
+examples/**
+.agents/**
+.codex/**
 task_plan.md
 *.vsix
 **/*.map

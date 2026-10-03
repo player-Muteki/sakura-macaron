@@ -1,38 +1,27 @@
 #!/usr/bin/env python3
-"""Sakura Macaron 补色引擎（第一部分：锚点解析）。
+"""解析固定 VS Code bundle 的深浅默认表达式，分别生成颜色引用或 RGBA 锚点。
 
-给定 VS Code 注册表和现有主题，为每个未定义的 color id 推导一个主题一致的色值：
-  1. 若默认表达式能归约为「另一个 color id」→ 直接取该 id 在本主题中的值（最可靠，语义 100% 保持）
-  2. 若能归约为 hex → 用 Lab 空间最近邻映射到本主题调色板（保留红/绿/蓝等语义色系）
-  3. 保留 alpha（透明度）信息
-
-输出 build/anchors.json: {id: {"type":"id"|"hex", "value":..., "alpha":float?}}
+默认输出 data/anchors.json，包含 source、themes.dark/light 和 unresolved。
+保留引用透明度；版本或 bundle 哈希不匹配时拒绝写入。
+维护固定基准请使用 update_registry.py；此脚本不负责主题调色板映射。
 """
 import json
 import os
 import re
 import colorsys
+import argparse
+import hashlib
+from pathlib import Path
+from extract_registry import find_bundle, split_args as parse_arguments
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BUNDLE = None
-for c in [
-    os.environ.get("VSCODE_PATH", "") + "/out/vs/workbench/workbench.desktop.main.js",
-    "/usr/share/code/resources/app/out/vs/workbench/workbench.desktop.main.js",
-]:
-    if c and os.path.isfile(c):
-        BUNDLE = c
-        break
-
-REG = json.load(open(os.path.join(HERE, "build/registry.json")))
-SRC = open(BUNDLE, encoding="utf8", errors="ignore").read()
+REG = {}
 
 # ---- 变量环境 ----------------------------------------------------------
 # ae() 注册的 color id
-VAR2ID = {v["var"]: cid for cid, v in REG.items() if v.get("var")}
+VAR2ID = {}
 # 形如 `X=.4` 的数值（透明度因子）
 NUM = {}
-for m in re.finditer(r"[,;{}(\s]([\w$]+)=(\.\d+|0|1)\b", SRC):
-    NUM[m.group(1)] = float(m.group(2))
 # Color 类常量（$e = Colors class）
 COLORS = {
     "white": (255, 255, 255, 1.0), "black": (0, 0, 0, 1.0),
@@ -42,10 +31,6 @@ COLORS = {
 }
 # `new $e(new fi(r,g,b,a))` 形式的颜色常量
 RGBA_VAR = {}
-for m in re.finditer(r"([\w$]+)=new \$e\(new fi\(([\d.]+),([\d.]+),([\d.]+)(?:,([\d.]+))?\)\)", SRC):
-    r, g, b = int(float(m.group(2))), int(float(m.group(3))), int(float(m.group(4)))
-    a = float(m.group(5)) if m.group(5) else 1.0
-    RGBA_VAR[m.group(1)] = (r, g, b, a)
 
 
 def hex_rgba(h):
@@ -62,28 +47,18 @@ def is_color_id(tok):
 
 
 def split_args(s):
-    out, d, cur, q = [], 0, [], None
-    for ch in s:
-        if q:
-            cur.append(ch)
-            if ch == q:
-                q = None
-        elif ch in "\"'":
-            q = ch
-            cur.append(ch)
-        elif ch in "([{":
-            d += 1
-            cur.append(ch)
-        elif ch in ")]}":
-            d -= 1
-            cur.append(ch)
-        elif ch == "," and d == 0:
-            out.append("".join(cur).strip())
-            cur = []
-        else:
-            cur.append(ch)
-    out.append("".join(cur).strip())
-    return out
+    return parse_arguments(s, 0)
+
+
+def number(expression):
+    return NUM[expression] if expression in NUM else float(expression)
+
+
+def transparent(base, factor):
+    if base[0] == "id":
+        return ("id", base[1], (base[2] if len(base) > 2 else 1.0) * factor)
+    red, green, blue, alpha = base[1]
+    return ("hex", (red, green, blue, alpha * factor))
 
 
 def resolve(expr, depth=0):
@@ -103,12 +78,11 @@ def resolve(expr, depth=0):
             return None
         op, arg = m.group(2), m.group(3).strip()
         try:
-            f = NUM.get(arg, float(arg))
+            f = number(arg)
         except ValueError:
-            f = 1.0
-        if op == "transparent" and base[0] == "hex":
-            r, g, b, a = base[1]
-            return ("hex", (r, g, b, a * f))
+            return None
+        if op == "transparent":
+            return transparent(base, f)
         return base
     # 颜色常量 $e.white.transparent(.1) / $e.fromHex("#xxx")
     m = re.fullmatch(r"\$e\.([a-zA-Z]+)", e)
@@ -147,7 +121,7 @@ def resolve(expr, depth=0):
         return ("hex", RGBA_VAR[e])
     if e in ("foreground",):        # 基础前景色（无点号的 base token）
         return ("id", "foreground")
-    if is_color_id(e):
+    if e in REG:
         return ("id", e)
     # 函数调用：递归解析第一个能解析出颜色的参数
     m = re.fullmatch(r"([\w$.]+)\((.*)\)$", e, re.S)
@@ -160,39 +134,55 @@ def resolve(expr, depth=0):
             rr = resolve(aa, depth + 1)
             if rr:
                 # Ci(x, f) / op / pv 等带因子：若因子是透明度语义则乘 alpha
-                if fn == "Ci" and rr[0] == "hex" and len(args) > 1:
-                    f = NUM.get(split_args(args[1].strip())[0] if args[1].strip() not in NUM else args[1].strip(), None)
-                    if f is None:
-                        try:
-                            f = NUM.get(args[1].strip(), float(args[1].strip()))
-                        except ValueError:
-                            f = None
-                    if f is not None:
-                        r, g, b, al = rr[1]
-                        return ("hex", (r, g, b, al * f))
+                if fn == "Ci" and len(args) > 1:
+                    try:
+                        return transparent(rr, number(args[1].strip()))
+                    except ValueError:
+                        return None
                 return rr
         return None
     return None
 
 
-def build_anchors():
+def build_anchors(kind):
     anchors = {}
     for cid, v in REG.items():
-        d = resolve(v.get("dark"))
-        if d is None:
-            d = resolve(v.get("light"))
+        d = resolve(v.get(kind))
         if d is not None:
             anchors[cid] = {"type": d[0], "value": d[1]}
+            if len(d) > 2:
+                anchors[cid]["alpha"] = d[2]
     return anchors
 
 
+def main():
+    global REG, VAR2ID, NUM, RGBA_VAR
+    parser = argparse.ArgumentParser(description="为固定注册表生成深浅色锚点；压缩符号仅支持已验证版本")
+    parser.add_argument("--vscode-path")
+    parser.add_argument("--registry", type=Path, default=Path(HERE) / "data/registry.json")
+    parser.add_argument("--output", type=Path, default=Path(HERE) / "data/anchors.json")
+    options = parser.parse_args()
+    snapshot = json.loads(options.registry.read_text(encoding="utf-8"))
+    source = snapshot["source"]
+    if source["commit"] != "07f806f999227108933c2e30515b26eecc1fda74":
+        parser.error("锚点解析器仅验证过 VS Code 1.140.0 的固定 commit；请先审查新版本压缩符号和回归用例")
+    bundle = Path(find_bundle(options.vscode_path)).read_bytes()
+    if hashlib.sha256(bundle).hexdigest() != source["bundleSha256"]:
+        parser.error("本机 bundle 与注册表快照不匹配，未写入锚点")
+    text = bundle.decode("utf-8")
+    REG = snapshot["colors"]
+    VAR2ID = {value["var"]: key for key, value in REG.items() if value.get("var")}
+    NUM = {match.group(1): float(match.group(2)) for match in re.finditer(r"[,;{}(\s]([\w$]+)=(\.\d+|0|1)\b", text)}
+    RGBA_VAR = {match.group(1): (int(float(match.group(2))), int(float(match.group(3))), int(float(match.group(4))), float(match.group(5) or 1))
+                for match in re.finditer(r"([\w$]+)=new \$e\(new fi\(([\d.]+),([\d.]+),([\d.]+)(?:,([\d.]+))?\)\)", text)}
+    themes = {kind: build_anchors(kind) for kind in ("dark", "light")}
+    unresolved = {kind: sorted(set(REG) - set(anchors)) for kind, anchors in themes.items()}
+    output = {"source": source, "themes": themes, "unresolved": unresolved}
+    options.output.parent.mkdir(parents=True, exist_ok=True)
+    options.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    for kind, anchors in themes.items():
+        print(f"{kind}: 解析 {len(anchors)}/{len(REG)}；其余 {len(unresolved[kind])} 项需显式颜色或派生规则")
+
+
 if __name__ == "__main__":
-    anchors = build_anchors()
-    json.dump(anchors, open(os.path.join(HERE, "build/anchors.json"), "w"), indent=1)
-    n_id = sum(1 for a in anchors.values() if a["type"] == "id")
-    n_hex = sum(1 for a in anchors.values() if a["type"] == "hex")
-    print(f"锚点解析成功 {len(anchors)}/{len(REG)}  (id 引用 {n_id}, hex {n_hex})")
-    unresolved = sorted(set(REG) - set(anchors))
-    print(f"未解析 {len(unresolved)}:")
-    for u in unresolved[:200]:
-        print("   ", u, "=", REG[u].get("dark"))
+    main()

@@ -4,3 +4,5 @@ node_modules/
 
 # 由 scripts/extract_registry.py 生成的中间产物（依赖本机 VS Code 安装）
 build/
+__pycache__/
+*.pyc

@@ -4,11 +4,13 @@
 按 VS Code 实际绘制的界面层级列出 (前景键, 背景键) 配对，计算 WCAG 对比度，
 低于阈值时报告出来。用于人工复核自动补色是否产生可读性问题。
 
-用法：python3 scripts/check_contrast.py [--threshold 3.0]
+用法：python scripts/check_contrast.py [--threshold 4.5] [--strict] [--json]
 """
 import json
 import os
 import sys
+import argparse
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEMES = os.path.join(HERE, "themes")
@@ -16,7 +18,7 @@ THEMES = os.path.join(HERE, "themes")
 # (说明, 前景键, 背景键)
 PAIRS = [
     ("活动栏图标", "activityBar.foreground", "activityBar.background"),
-    ("活动栏激活项", "activityBar.activeForeground", "activityBar.activeBackground"),
+    ("活动栏激活项", "activityBar.foreground", "activityBar.activeBackground"),
     ("侧边栏条目", "sideBar.foreground", "sideBar.background"),
     ("侧边栏标题", "sideBarTitle.foreground", "sideBarTitle.background"),
     ("树选中项", "tree.inactiveIndentGuidesStroke", "sideBar.background"),
@@ -29,23 +31,21 @@ PAIRS = [
     ("选区文字", "editor.selectionForeground", "editor.selectionBackground"),
     ("查找命中", "editor.findMatchForeground", "editor.findMatchBackground"),
     ("查找命中高亮", "editor.findMatchHighlightForeground", "editor.findMatchHighlightBackground"),
-    ("单词高亮", "editor.wordHighlightStrongForeground", "editor.wordHighlightStrongBackground"),
+    ("单词高亮", "editor.foreground", "editor.wordHighlightStrongBackground"),
     ("光标", "editorCursor.foreground", "editor.background"),
-    ("当前行", "editor.lineHighlightForeground", "editor.lineHighlightBackground"),
+    ("当前行", "editor.foreground", "editor.lineHighlightBackground"),
     ("括号匹配", "editorBracketMatch.foreground", "editorBracketMatch.background"),
     ("折叠占位符", "editor.foldPlaceholderForeground", "editor.background"),
     ("代码透镜", "editorCodeLens.foreground", "editor.background"),
-    ("内联提示", "editorInlayHint.foreground", "editor.background"),
+    ("内联提示", "editorInlayHint.foreground", "editorInlayHint.background"),
     ("占位符文字", "editorGhostText.foreground", "editor.background"),
     ("建议框", "editorSuggestWidget.foreground", "editorSuggestWidget.background"),
     ("悬浮提示", "editorHoverWidget.foreground", "editorHoverWidget.background"),
-    ("调试悬浮", "editorHoverWidget.debuggerExpressionForeground", "editorHoverWidget.background"),
-    ("签名帮助", "editorHoverWidget.signatureForeground", "editorHoverWidget.background"),
     ("消息", "notifications.foreground", "notifications.background"),
-    ("消息链接", "notificationsLink.foreground", "notifications.background"),
+    ("消息链接", "textLink.foreground", "notifications.background"),
     ("问题面板", "problemsErrorIcon.foreground", "panel.background"),
-    ("输出面板", "outputView.foreground", "panel.background"),
-    ("调试控制台", "debugConsole.foreground", "debugConsole.background"),
+    ("输出正文", "editor.foreground", "editor.background"),
+    ("调试控制台", "debugConsole.sourceForeground", "panel.background"),
     ("终端文字", "terminal.foreground", "terminal.background"),
     ("终端选区", "terminal.selectionForeground", "terminal.selectionBackground"),
     ("状态栏", "statusBar.foreground", "statusBar.background"),
@@ -55,51 +55,48 @@ PAIRS = [
     ("状态栏离线项", "statusBarItem.offlineForeground", "statusBarItem.offlineBackground"),
     ("活动栏失焦图标", "activityBar.inactiveForeground", "activityBar.background"),
     ("活动栏顶失焦", "activityBarTop.inactiveForeground", "activityBarTop.background"),
-    ("输入校验错误", "inputValidation.errorForeground", "input.background"),
-    ("输入校验警告", "inputValidation.warningForeground", "input.background"),
+    ("输入校验错误", "inputValidation.errorForeground", "inputValidation.errorBackground"),
+    ("输入校验警告", "inputValidation.warningForeground", "inputValidation.warningBackground"),
     ("标签页激活", "tab.activeForeground", "tab.activeBackground"),
     ("标签页未激活", "tab.inactiveForeground", "tab.inactiveBackground"),
     ("标签栏底色", "tab.unfocusedActiveForeground", "tab.unfocusedActiveBackground"),
     ("面包屑", "breadcrumb.foreground", "breadcrumb.background"),
-    ("编辑器组标题", "editorGroupHeader.foreground", "editorGroupHeader.tabsBackground"),
     ("标题栏", "titleBar.activeForeground", "titleBar.activeBackground"),
     ("菜单", "menu.foreground", "menu.background"),
     ("菜单选中", "menu.selectionForeground", "menu.selectionBackground"),
     ("快速输入", "input.foreground", "quickInput.background"),
-    ("快速输入标题", "quickInputTitle.foreground", "quickInputTitle.background"),
+    ("快速输入标题", "quickInput.foreground", "quickInputTitle.background"),
     ("快速输入列表选中", "list.activeSelectionForeground", "quickInput.list.focusBackground"),
     ("下拉框", "dropdown.foreground", "dropdown.background"),
     ("输入框", "input.foreground", "input.background"),
     ("按钮", "button.foreground", "button.background"),
     ("次要按钮", "button.secondaryForeground", "button.secondaryBackground"),
     ("复选框", "checkbox.foreground", "checkbox.background"),
-    ("单选框", "radio.foreground", "radio.background"),
+    ("单选框", "radio.activeForeground", "radio.activeBackground"),
     ("徽章", "badge.foreground", "badge.background"),
     ("扩展按钮", "extensionButton.foreground", "extensionButton.background"),
-    ("滚动条", "scrollbarSlider.foreground", "scrollbarSlider.background"),
     ("Git 图", "scmGraph.foreground1", "sideBar.background"),
     ("测试通过图标", "testing.iconPassed", "panel.background"),
     ("测试失败图标", "testing.iconFailed.retired", "panel.background"),
-    ("Notebook 单元格", "notebook.cellEditorForeground", "notebook.cellEditorBackground"),
-    ("Peek 视图", "peekViewResult.foreground", "peekViewResult.background"),
+    ("Notebook 单元格", "editor.foreground", "notebook.cellEditorBackground"),
+    ("Peek 视图", "peekViewResult.lineForeground", "peekViewResult.background"),
     ("Peek 视图标题", "peekViewTitleLabel.foreground", "peekViewTitle.background"),
-    ("Chat 输入", "chat.inputForeground", "chat.inputBackground"),
-    ("设置项标题", "settings.headerForeground", "settings.background"),
-    ("设置分组标题", "settings.settingsHeaderForeground", "settings.background"),
-    ("富文本正文", "textBlockQuote.foreground", "textBlockQuote.background"),
+    ("Chat 输入继承", "input.foreground", "input.background"),
+    ("设置项标题", "settings.headerForeground", "editor.background"),
+    ("富文本正文", "foreground", "textBlockQuote.background"),
     ("行内代码", "textPreformat.foreground", "textPreformat.background"),
     ("链接", "textLink.foreground", "editor.background"),
-    ("Diff 新增", "diffEditor.insertedTextForeground", "diffEditor.insertedTextBackground"),
-    ("Diff 删除", "diffEditor.removedTextForeground", "diffEditor.removedTextBackground"),
+    ("Diff 新增", "editor.foreground", "diffEditor.insertedTextBackground"),
+    ("Diff 删除", "editor.foreground", "diffEditor.removedTextBackground"),
     ("合并冲突", "mergeEditor.conflict.unhandledFocused.border", "mergeEditor.conflictingLines.background"),
-    ("符号图标", "symbolIcon.foreground", "sideBar.background"),
+    ("符号图标", "symbolIcon.classForeground", "sideBar.background"),
     ("树形缩进参考线", "tree.indentGuidesStroke", "sideBar.background"),
 ]
 
 
 def parse_hex(h):
     h = h.lstrip("#")
-    if len(h) == 3:
+    if len(h) in (3, 4):
         h = "".join(c * 2 for c in h)
     if len(h) == 6:
         h += "FF"
@@ -156,51 +153,113 @@ def surface_of(bkey):
 # 刻意保持低对比度的元素（这些不是文字，而是边框/参考线/背景高亮，
 # VS Code 官方默认也是同样处理，不应报警）
 EXPECTED_LOW = {
-    ("合并冲突", "mergeEditor.conflict.unhandledFocused.border"),
-    ("括号匹配", "editorBracketMatch.foreground"),
-    ("树选中项", "tree.inactiveIndentGuidesStroke"),
-    ("树形缩进参考线", "tree.indentGuidesStroke"),
-    ("行号", "editorLineNumber.foreground"),
-    ("占位符文字", "editorGhostText.foreground"),
+    "mergeEditor.conflict.unhandledFocused.border": "装饰性冲突边框；冲突文字另有前景色",
+    "tree.inactiveIndentGuidesStroke": "装饰性树缩进线，不承载文字",
+    "tree.indentGuidesStroke": "装饰性树缩进线，不承载文字",
+}
+
+NON_TEXT = {
+    "activityBar.foreground", "activityBar.inactiveForeground", "activityBarTop.inactiveForeground",
+    "editorCursor.foreground", "problemsErrorIcon.foreground", "scmGraph.foreground1",
+    "testing.iconPassed", "testing.iconFailed.retired", "symbolIcon.classForeground",
+    *EXPECTED_LOW,
 }
 
 
+def syntax_surfaces(colors):
+    base = colors["editor.background"]
+    surfaces = {"editor": base}
+    for kind in ("inserted", "removed"):
+        line = over_base(colors[f"diffEditor.{kind}LineBackground"], base)
+        surfaces[f"diff.{kind}.line"] = line
+        surfaces[f"diff.{kind}.text"] = over_base(colors[f"diffEditor.{kind}TextBackground"], line)
+    surfaces["selection"] = over_base(colors["editor.selectionBackground"], base)
+    return surfaces
+
+
+def audit(theme, threshold=4.5):
+    colors = theme["colors"]
+    report = {"checked": {"ui": 0, "textmate": 0, "semantic": 0}, "failures": [], "exemptions": [], "skipped": []}
+
+    def measure(category, label, foreground, background, minimum, exemption=None):
+        effective = over_base(foreground, background)
+        ratio = contrast(effective, background)
+        report["checked"][category] += 1
+        if ratio < minimum:
+            row = {"category": category, "label": label, "foreground": foreground,
+                   "background": background, "ratio": round(ratio, 4), "minimum": minimum}
+            if exemption:
+                row["reason"] = exemption
+                report["exemptions"].append(row)
+            else:
+                report["failures"].append(row)
+
+    for label, foreground, background in PAIRS:
+        base_key = surface_of(background)
+        missing = list(dict.fromkeys(key for key in (foreground, background, base_key) if key not in colors))
+        if missing:
+            report["skipped"].append({"label": label, "missing": missing})
+            continue
+        base = colors[base_key]
+        minimum = 3.0 if foreground in NON_TEXT else threshold
+        measure("ui", f"{label}: {foreground}", colors[foreground], over_base(colors[background], base), minimum, EXPECTED_LOW.get(foreground))
+
+    required = ["editor.background", "editor.foreground", "editor.selectionBackground",
+                "diffEditor.insertedLineBackground", "diffEditor.insertedTextBackground",
+                "diffEditor.removedLineBackground", "diffEditor.removedTextBackground"]
+    missing = [key for key in required if key not in colors]
+    if missing:
+        report["skipped"].append({"label": "语法背景", "missing": missing})
+        return report
+    surfaces = syntax_surfaces(colors)
+    for category, rules in (("textmate", theme["tokenColors"]), ("semantic", theme["semanticTokenColors"].items())):
+        for index, rule in enumerate(rules):
+            if category == "textmate":
+                settings = rule["settings"]
+                label = f"{index}: {rule['scope']}"
+            else:
+                label, value = rule
+                settings = {"foreground": value} if isinstance(value, str) else value
+            if "foreground" not in settings:
+                report["skipped"].append({"label": f"{category}.{label}", "reason": "仅含字体样式，实际前景取决于语言与其它规则"})
+                continue
+            for surface, background in surfaces.items():
+                foreground = settings["foreground"]
+                if "background" in settings:
+                    background = over_base(settings["background"], background)
+                if surface == "selection":
+                    foreground = colors.get("editor.selectionForeground", foreground)
+                measure(category, f"{label} on {surface}", foreground, background, threshold)
+    return report
+
+
 def main():
-    thresh = 3.0
-    if "--threshold" in sys.argv:
-        thresh = float(sys.argv[sys.argv.index("--threshold") + 1])
-    strict = "--strict" in sys.argv
-    total_bad = 0
+    parser = argparse.ArgumentParser(description="静态对比度审计：正文 4.5:1、图标 3:1；不是完整 WCAG 认证")
+    parser.add_argument("--threshold", type=float, default=4.5)
+    parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--theme-dir", type=Path, default=Path(THEMES))
+    options = parser.parse_args()
+    if not 1 <= options.threshold <= 21:
+        parser.error("threshold 必须在 1 到 21 之间")
+    reports = {}
     for kind, fname in (("dark", "sakura-macaron-dark.json"),
                         ("light", "sakura-macaron-light.json")):
-        c = json.load(open(os.path.join(THEMES, fname)))["colors"]
-        bad, expected = [], []
-        for label, fkey, bkey in PAIRS:
-            if fkey not in c or bkey not in c:
-                continue
-            fg, bg = c[fkey], c[bkey]
-            # 半透明的高亮/选区要先合成到所属界面的底色上，否则对比度会被低估
-            base_key = surface_of(bkey)
-            base = c.get(base_key, bg) if base_key else bg
-            bg_eff = over_base(bg, base)
-            fg_eff = over_base(fg, bg_eff)
-            try:
-                ratio = contrast(fg_eff, bg_eff)
-            except Exception:
-                continue
-            if ratio >= thresh:
-                continue
-            row = (label, fkey, fg, bkey, bg, ratio)
-            (expected if (label, fkey) in EXPECTED_LOW else bad).append(row)
-        print(f"=== {kind}: 异常 {len(bad)} 处 / 预期偏低 {len(expected)} 处（阈值 {thresh}:1）===")
-        for label, fkey, fg, bkey, bg, ratio in sorted(bad, key=lambda x: x[5]):
-            print(f"  {ratio:5.2f}:1  {label:16} {fkey}={fg} on {bkey}={bg}")
-        if expected:
-            print("  （以下为设计上偏低的边框/参考线，与 VS Code 默认一致）")
-            for label, fkey, fg, bkey, bg, ratio in sorted(expected, key=lambda x: x[5]):
-                print(f"  {ratio:5.2f}:1  {label:16} {fkey}={fg}")
-        total_bad += len(bad)
-    return 1 if (strict and total_bad) else 0
+        theme = json.loads((options.theme_dir / fname).read_text(encoding="utf-8"))
+        reports[kind] = audit(theme, options.threshold)
+    if options.json:
+        print(json.dumps(reports, ensure_ascii=False, indent=2))
+    else:
+        for kind, report in reports.items():
+            print(f"=== {kind}: 检查 {report['checked']}；失败 {len(report['failures'])}；装饰豁免 {len(report['exemptions'])}；未测 {len(report['skipped'])} ===")
+            for row in report["failures"]:
+                print(f"  {row['ratio']:.2f}:1 < {row['minimum']}:1  {row['label']}")
+            for row in report["skipped"]:
+                print(f"  未测: {row}")
+            for row in report["exemptions"]:
+                print(f"  豁免: {row['label']} — {row['reason']}")
+    missing = any(row.get("missing") for report in reports.values() for row in report["skipped"])
+    return int(options.strict and (missing or any(report["failures"] for report in reports.values())))
 
 
 if __name__ == "__main__":

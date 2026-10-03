@@ -1,33 +1,29 @@
 #!/usr/bin/env python3
-"""Sakura Macaron 主题生成器。
+"""从 src/ 设计源、data/ 固定快照和 build_tokens 色板离线生成两套主题。
 
-流程：
-  1. 读取 VS Code 颜色注册表（scripts/extract_registry.py 产出）与默认表达式锚点
-     （scripts/derive_colors.py 产出）。
-  2. 对每个注册的颜色 id 求出主题色值，优先级：
-       a. 主题中已显式定义的值            （尊重人工设计）
-       b. 失效键迁移表 MIGRATE            （tabs.* -> tab.* 等）
-       c. 兄弟键派生表 SIBLING            （默认值为 null 的键）
-       d. 默认表达式的 id 引用            （语义 100% 保持）
-       e. 默认表达式的 hex -> Lab 最近邻映射到本主题调色板
-       f. 人工覆盖表 OVERRIDE            （少量需要手调的键）
-  3. 保证深浅两套主题键集完全一致（单侧独有的键自动派生）。
-  4. 校验所有色值为合法 hex，输出到 themes/。
-
-用法：python3 scripts/build_themes.py [--check]
+人工显式色优先；缺失键经覆盖表、兄弟键、对应深浅锚点与色相映射补齐。
+未知源键和未求解键会失败。--check 比较完整产物字节，不写文件。
+用法：python scripts/build_themes.py [--check] [--output-dir themes]
 """
 import json
 import math
 import os
 import re
 import sys
+import argparse
+from pathlib import Path
+from build_tokens import build as build_tokens
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEMES = os.path.join(HERE, "themes")
-BUILD = os.path.join(HERE, "build")
+BUILD = os.path.join(HERE, "data")
 
-REG = json.load(open(os.path.join(BUILD, "registry.json")))
-ANCH = json.load(open(os.path.join(BUILD, "anchors.json")))
+SNAPSHOT = json.loads(Path(BUILD, "registry.json").read_text(encoding="utf-8"))
+ANCHORS = json.loads(Path(BUILD, "anchors.json").read_text(encoding="utf-8"))
+if SNAPSHOT["source"] != ANCHORS["source"]:
+    raise ValueError("注册表和锚点的来源不一致，请完成 registry:update")
+REG = SNAPSHOT["colors"]
+ANCH = ANCHORS["themes"]
 DARK_PATH = os.path.join(THEMES, "sakura-macaron-dark.json")
 LIGHT_PATH = os.path.join(THEMES, "sakura-macaron-light.json")
 
@@ -544,8 +540,8 @@ class Resolver:
             src, factor = SIBLING[key]
             base = self.get(src, _stack) or self.fallback_fg
             val = with_alpha(base, factor) if factor != 1.0 else base
-        if val is None and key in ANCH:
-            a = ANCH[key]
+        if val is None and key in ANCH[self.kind]:
+            a = ANCH[self.kind][key]
             fam = semantic_family(key)
             if fam and a["type"] == "hex":
                 # 语义色：对齐主题自己的 diff 调色板，而不是按色相最近邻
@@ -559,6 +555,8 @@ class Resolver:
                 val = to_hex(r, g, b, alpha)
             elif a["type"] == "id" and a["value"] != key:
                 val = self.get(a["value"], _stack) or self.fallback_fg
+                if "alpha" in a:
+                    val = with_alpha(val, a["alpha"])
             elif a["type"] == "hex":
                 r, g, b, alpha = a["value"]
                 near = self.palette.nearest(to_hex(r, g, b, 255))
@@ -572,9 +570,9 @@ class Resolver:
         return val
 
 
-def build(theme_path, other_path, is_dark):
+def build(theme_path, is_dark):
     kind = "dark" if is_dark else "light"
-    theme = json.load(open(theme_path))
+    theme = json.loads(Path(theme_path).read_text(encoding="utf-8"))
     colors = dict(theme["colors"])
 
     # 1) 失效键迁移：把老键的色值搬到现代键（现代键未被显式定义时才搬）
@@ -585,13 +583,6 @@ def build(theme_path, other_path, is_dark):
                 colors[new] = colors[old]
                 migrated += 1
             del colors[old]
-
-    # 1b) 人工覆盖优先级最高（修正深浅取值不一致、可读性问题）
-    for key, ov in OVERRIDE.items():
-        if not isinstance(ov, str) and key in REG:
-            val = ov.get(kind)
-            if val:
-                colors[key] = val
 
     base_bg = colors.get("editor.background", "#1E1E1E")
     base_fg = colors.get("editor.foreground", "#CCCCCC")
@@ -623,9 +614,13 @@ def build(theme_path, other_path, is_dark):
 
 
 def main():
-    check_only = "--check" in sys.argv
-    dt, dc, dmeta = build(DARK_PATH, LIGHT_PATH, True)
-    lt, lc, lmeta = build(LIGHT_PATH, DARK_PATH, False)
+    parser = argparse.ArgumentParser(description="从固定快照与 src 设计源离线生成完整主题")
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--source-dir", type=Path, default=Path(HERE) / "src")
+    parser.add_argument("--output-dir", type=Path, default=Path(THEMES))
+    options = parser.parse_args()
+    dt, dc, dmeta = build(options.source_dir / "dark.json", True)
+    lt, lc, lmeta = build(options.source_dir / "light.json", False)
 
     # 5) 深浅键集对齐
     only_d = sorted(set(dc) - set(lc))
@@ -651,6 +646,8 @@ def main():
     if set(dc) != set(lc):
         problems.append("深浅键集仍不一致")
     for meta, name in ((dmeta, "dark"), (lmeta, "light")):
+        if meta["dropped"]:
+            problems.append(f"{name} 设计源包含未知键: {meta['dropped']}")
         if meta["unresolved"]:
             problems.append(f"{name} 未能求解: {meta['unresolved']}")
 
@@ -665,16 +662,27 @@ def main():
     print(f"light: 定义 {len(lc)} 键（迁移 {lmeta['migrated']}，新增 {lmeta['added']}，"
           f"清理失效 {len(lmeta['dropped'])}）")
 
-    if check_only:
-        return
-
     dt["colors"] = dc
     lt["colors"] = lc
-    for path, data in ((DARK_PATH, dt), (LIGHT_PATH, lt)):
-        with open(path, "w") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-        print("写入", os.path.relpath(path, HERE))
+    changed = []
+    for kind, data in (("dark", dt), ("light", lt)):
+        tokens, semantic = build_tokens(kind)
+        data = {"$schema": data["$schema"], "name": data["name"], "type": data["type"],
+                "semanticHighlighting": True, "semanticTokenColors": semantic,
+                "tokenColors": tokens, "colors": data["colors"]}
+        path = options.output_dir / f"sakura-macaron-{kind}.json"
+        expected = (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        if not path.exists() or path.read_bytes() != expected:
+            changed.append(str(path))
+        if not options.check:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(expected)
+            print("写入", path)
+    if options.check and changed:
+        print("生成产物缺失或过期，请运行 npm run build：\n" + "\n".join(changed))
+        sys.exit(1)
+    if options.check:
+        print("设计源与生成产物逐字节一致")
 
 
 if __name__ == "__main__":

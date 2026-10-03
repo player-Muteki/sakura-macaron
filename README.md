@@ -1,46 +1,35 @@
 # Sakura Macaron
 
-[![Visual Studio Marketplace](https://img.shields.io/badge/-Sakura%20Macaron-C45A6D?style=for-the-badge&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=player-muteki.sakura-macaron)
-[![Version](https://img.shields.io/badge/version-0.1.1-C45A6D)](https://marketplace.visualstudio.com/items?itemName=player-muteki.sakura-macaron)
-
-樱花马卡龙配色主题 — 一套完整、自包含的 VS Code 主题，不依赖任何其它主题。
-
-- 🌙 **Dark** — 灰蓝色调，暗色环境下的柔和护眼配色
-- ☀️ **Light** — 樱粉色调，柔和不刺眼的浅色界面
+樱花马卡龙配色主题：Dark 灰蓝、Light 樱粉，两套独立的 VS Code 主题，不依赖其他主题或运行时代码。
 
 ## 截图
 
-<!-- 截图占位：把图片放到 images/ 目录后，取消下面两行的注释即可 -->
+### Sakura Macaron Dark
 
-<!-- ![Sakura Macaron Dark](images/screenshot-dark.png) -->
-<!-- ![Sakura Macaron Light](images/screenshot-light.png) -->
+![Sakura Macaron Dark](images/screenshot-dark.png)
 
-## 特性
+### Sakura Macaron Light
 
-- **完全独立**：不基于 GitHub Dark/Light 或任何其它主题，全部配色内建于主题文件
-- **键集零遗漏**：两套主题各定义当前 VS Code 注册表中全部 **992** 个颜色键，
-  无失效键、无缺失键（含 Modern UI、AI Chat / Agents、Git 图、Notebook、多文件 Diff、合并编辑器）
-- **语法高亮**：**80** 条 TextMate 规则覆盖 **232** 个 scope —— 覆盖 Markdown、正则与转义、
-  diff 元信息、meta/JSX/embedded、括号配对高亮、非法/弃用 token 等
-- **语义高亮**：**94** 项，含全部官方 `.defaultLibrary` 组合与八类 modifier
-  （declaration / documentation / static / readonly / deprecated / modification / abstract / async），
-  并支持官方扩展注册的自定义 token 类型（TypeScript / Pylance / rust-analyzer / cpptools）
-- **色觉友好**：语义色按「新增 / 修改 / 删除」三个明确角色分配，色相间距足够大，
-  不依赖红绿单一维度传递信息
-- **两套主题键集完全对齐**：不会出现「某个界面只在浅色下不对」
-- **Git 与 Diff**：文件装饰、增删改色、合并冲突、三方合并视图全部定制
-- **终端**：16 色 ANSI 配色表、命令标记、命令指引线、粘性滚动
-- **调试 / 测试**：断点图标、变量类型着色、堆栈高亮、覆盖率着色
-- **可访问性**：前景/背景对比度经 WCAG 审计，半透明高亮会先合成底色再计算
+![Sakura Macaron Light](images/screenshot-light.png)
 
-## 安装
+截图来自 VS Code 1.140.0 的独立扩展开发窗口，使用仓库内 `examples/preview.ts`，不是概念渲染图。
 
-在 VSCode 扩展市场搜索 **Sakura Macaron** 并安装，或手动安装 `.vsix`。
+## 特性与覆盖
 
-### 使用
+- 两套主题各包含 **992 个工作台颜色键**，键集一致，覆盖编辑器、终端、Git/Diff、调试、测试、Notebook、Chat 等界面。
+- **80 条 TextMate 规则、232 个 scope 条目、94 项语义高亮规则**，包含关键字、函数、类型、Markdown、正则、转义与 Diff 等分类。
+- 新增、修改、删除采用不同角色色；浅色删除色为莓红，与修改色的橙棕区分。
+- 自带固定快照、生成器、结构校验、静态对比度审计及回归测试，生成主题无需安装 VS Code。
 
-1. `Ctrl+Shift+K` `Ctrl+T` 选择 **Sakura Macaron Dark** / **Sakura Macaron Light**
-2. 如需跟随系统自动切换深浅色，在设置中开启：
+**覆盖边界：** 992 项是 VS Code **1.140.0 固定样本**的候选颜色基准：966 项来自 bundle 中识别出的注册调用，26 项来自过滤后的 CSS 引用。快照逐项记录来源；CSS 引用不等同于已证明的正式注册。这里不承诺覆盖未来版本或所有第三方扩展。
+
+## 安装与使用
+
+在 VS Code 扩展市场搜索 **Sakura Macaron**，或通过“Extensions: Install from VSIX...”安装本地包。
+
+1. 在命令面板运行 **Preferences: Color Theme**；Windows/Linux 也可依次按 `Ctrl+K`、`Ctrl+T`。
+2. 选择 **Sakura Macaron Dark** 或 **Sakura Macaron Light**。
+3. 如需跟随系统切换，添加设置：
 
 ```json
 {
@@ -50,86 +39,78 @@
 }
 ```
 
-### 推荐搭配
-
-主题不含图标，若喜欢图标可另装 [vscode-icons](https://marketplace.visualstudio.com/items?itemName=vscode-icons-team.vscode-icons)。
+主题不包含文件图标主题。
 
 ## 配色一览
 
 ### 界面
 
-| | Dark | Light |
+| 角色 | Dark | Light |
 |---|---|---|
 | 编辑器背景 | `#36393F` | `#FFF6F8` |
 | 侧边栏 | `#2F3136` | `#FDE7EE` |
 | 活动栏 | `#26282C` | `#F0C2D4` |
 | 面板 | `#2C2E33` | `#F9DBE5` |
-| 状态栏 | `#87A3D6` | `#C45A6D` |
-| 标签页（激活 / 未激活） | `#36393F` / `#2E3137` | `#FFFFFF` / `#FBE0E9` |
-| 列表选中 | `#40444B` | `#EFB8CB` |
-| 焦点边框 | `#A3B1D6` | `#F4CDDB` |
-| 正文 | `#CCCCCC` | `#3A3132` |
-| 行号 | `#6B7A8D` | `#A88B96` |
+| 状态栏 | `#87A3D6` | `#AF4258` |
+| 编辑器正文 | `#CFCFCF` | `#3A3132` |
+| 行号 | `#9AA5B1` | `#816B74` |
 
 ### 语法
 
-| | Dark | Light |
+| 角色 | Dark | Light |
 |---|---|---|
-| 关键字 | `#87A3D6` | `#C84B5D` |
-| 函数 | `#CBA8B9` | `#327A85` |
-| 字符串 | `#85B59A` | `#6B965C` |
-| 数字 | `#F2D199` | `#D8823B` |
-| 类型 / 类 | `#E27E7E` | `#875C96` |
-| 常量 | `#D6A461` | `#C07A3A` |
-| 注释 | `#9B8A9E` | `#6A8A76` |
+| 关键字 | `#B7C8E6` | `#983947` |
+| 函数 | `#DAC0CD` | `#28626A` |
+| 字符串 | `#B0CFBD` | `#44603B` |
+| 数字 | `#F2D199` | `#7F4D23` |
+| 类型 / 类 | `#F0BBBB` | `#704C7C` |
+| 常量 | `#E4C295` | `#7D4F26` |
+| 注释 | `#CEC6CF` | `#495F51` |
 
-### 状态色
+界面色来源为 `src/*.json`，语法色来源为 `scripts/build_tokens.py` 的 `PALETTE`；语言服务可能选择不同语义规则。
 
-| | Dark | Light |
-|---|---|---|
-| 新增 | `#85B59A` | `#6B965C` |
-| 修改 | `#D6A461` | `#C07A3A` |
-| 删除 | `#E27E7E` | `#C07A3A` |
-| 错误 | `#C25B5B` | `#7E2A3C` |
-| 警告 | `#D6A461` | `#C07A3A` |
+## 对比度检查范围
+
+每套主题静态检查 **74 组 UI、480 组 TextMate、564 组语义色组合**。默认文字阈值为 **4.5:1**，图标等非文字阈值为 **3:1**。语法色分别检查编辑器、新增行、新增文本、删除行、删除文本和选区六种背景；半透明 Diff 文本背景叠加于对应行背景后计算。
+
+当前基准下两套主题均 **0 失败、0 未测项**。Dark 有 2 项、Light 有 3 项低对比度装饰豁免，仅涉及树缩进线和冲突边框，报告会显示理由；行号和幽灵文本不豁免。
+
+**这不是完整 WCAG 认证。** 静态模型不能覆盖所有 UI 状态、语言规则优先级、用户覆盖色、第三方扩展、Markdown 网页或屏幕显示条件。真实截图仅验证样例编辑器外观，不能替代这些场景的人工检查。
 
 ## 兼容性
 
-- 要求 VS Code **1.80.0** 及以上（`engines.vscode: ^1.80.0`）
-- 主题使用了 **202 个** VS Code 1.90+ 才引入的颜色键（`chat.*`、`modernUI.*`、
-  `inlineEdit.*`、`terminalSymbolIcon.*` 等）。在旧版 VS Code 上这些键会被**静默忽略**
-  （VS Code 对未注册的颜色 id 返回 undefined，不报错也不崩溃），界面依然可用，
-  只是这些新界面的装饰色会回落到默认配色。想要完整效果请用较新的 VS Code。
+- manifest 声明最低 VS Code **1.80.0**，但本次仅在 **1.140.0** 实测主题渲染，尚未完成最低版本兼容性测试。
+- 固定快照对应 commit `07f806f999227108933c2e30515b26eecc1fda74`，并保存 bundle/CSS 哈希；不宣称该版本为最新版本。
+- 不同 VS Code 版本的界面与颜色支持可能不同；新增颜色需要显式更新基准和审查，不会随本机编辑器升级自动改变构建结果。
 
-## 开发
+## 开发与验证
 
-主题的补色不是手写堆出来的，而是从 VS Code 自身的颜色注册表推导：
+需要 **Node.js 22+**、**Python 3.10+**，并保证 `python` 命令指向 Python 3。Python 脚本仅用标准库；常规构建和校验不需要本机 VS Code 或网络，首次安装 npm 开发依赖需要网络。
 
 ```bash
-python3 scripts/extract_registry.py   # 抽取 992 个颜色 id 及默认值表达式
-python3 scripts/derive_colors.py      # 把默认值归约为「颜色 id 引用」或「hex」
-python3 scripts/build_themes.py       # 迁移 / 兄弟派生 / 语义族 / 色相映射 → 主题
-python3 scripts/build_tokens.py       # 生成 token 与 semantic 配色
-
-npm run check              # 键集 / 注册表 / schema 校验
-npm run check:contrast     # WCAG 对比度审计
+npm ci --ignore-scripts
+npm run build
+npm run verify
+npm run package
 ```
 
-补色遵循的规则：
+| 命令 | 用途 |
+|---|---|
+| `npm run build` | 从 `src/`、固定快照及语法色板生成两套完整主题 |
+| `npm run check` | 固定键集、色值、主题结构、TextMate 与语义样式检查 |
+| `npm run check:generated` | 检测手改产物、过期产物或缺失产物，不写文件 |
+| `npm run check:contrast` | 严格对比度检查；失败或缺少必测颜色时返回非零 |
+| `npm test` | Node 与 Python 回归测试 |
+| `npm run verify` | 顺序执行全部检查与测试 |
+| `npm run package` | 先验证，再生成不携带开发依赖的 VSIX |
 
-1. 默认值若指向另一个颜色 id → 直接取本主题该键的值，语义 100% 保持
-2. 默认值若是 hex → 按**色相优先**的最近邻映射到本主题调色板
-3. 默认值为 `null` → 从语义上正确的兄弟键派生（**必须严格遵循官方定义的来源键**）
-4. Diff / Merge / Git / Testing 这类有语义的键走语义族映射，保证「新增=绿、删除=红」
+修改配色时编辑 `src/dark.json`、`src/light.json` 或 `scripts/build_tokens.py`，再运行构建；不要直接修改生成的 `themes/*.json`。
 
-`scripts/check-schema.mjs` 会校验主题是否符合官方接口：键是否在注册表内、
-色值是否为合法 hex、`tokenColors` 字段是否合法、`semanticTokenColors` 的
-token 类型与 modifier 是否已注册（含官方扩展注册的自定义类型）、两套主题键集是否一致。
+升级 VS Code 快照需要本机编辑器和人工审查，使用 `npm run registry:update -- --vscode-path <resources/app>`。当前锚点解析器仅允许已验证的 commit，不支持的新版本会拒绝更新，且解析失败不改变 `data/`。详见 [维护指南](docs/maintenance.md)。
 
 ## 问题反馈
 
-如发现配色问题或想要调整，欢迎在仓库提 Issue：
-https://github.com/player-Muteki/sakura-macaron/issues
+请在项目仓库提交 Issue，并附上 VS Code 版本、主题名称、语言/扩展、相关设置和截图。
 
 ## License
 

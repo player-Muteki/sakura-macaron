@@ -6,36 +6,38 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   check:
-    name: 主题自检
-    runs-on: ubuntu-latest
+    name: 主题自检 (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: 键集与注册表校验
-        run: npm run check
-
-      # 校验：四套主题的前景/背景 WCAG 对比度（半透明色先合成再计算）
-      - name: 对比度审计
-        run: python3 scripts/check_contrast.py --strict
-
-      - name: 主题文件结构校验
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts
+      - name: 固定快照、产物、对比度与回归测试
+        run: npm run verify
+      - name: 离线重建不得改变已提交产物
         run: |
-          python3 - <<'PY'
-          import json, glob
-          files = sorted(glob.glob("themes/*.json"))
-          assert len(files) == 2, f"应只有 2 个主题文件，实际 {len(files)}"
-          for f in files:
-              d = json.load(open(f))
-              assert d["$schema"] == "vscode://schemas/color-theme", f
-              assert d["type"] in ("dark", "light"), f
-              assert d["semanticHighlighting"] is True, f
-              print(f, "->", d["name"], "|", len(d["colors"]), "colors,",
-                    len(d["tokenColors"]), "token rules,",
-                    len(d["semanticTokenColors"]), "semantic entries")
-          PY
+          npm run build
+          git diff --exit-code -- themes
+      - name: 打包检查
+        if: runner.os == 'Linux'
+        run: npm run package
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: sakura-macaron-vsix
+          path: '*.vsix'
+          if-no-files-found: error
