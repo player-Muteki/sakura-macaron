@@ -1434,7 +1434,7 @@
     "checkbox.disabled.foreground": "#DCC8D380",
     "checkbox.selectBackground": "#513D50",
     "checkbox.selectBorder": "#27202A",
-    "commandCenter.debuggingBackground": "#BB7596",
+    "commandCenter.debuggingBackground": "#54374A",
     "commandCenter.inactiveForeground": "#AD98A7CC",
     "commentsView.resolvedIcon": "#7E6577",
     "commentsView.unresolvedIcon": "#F0B5CE",

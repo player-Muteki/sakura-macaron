@@ -91,6 +91,10 @@ PAIRS = [
     ("合并冲突", "mergeEditor.conflict.unhandledFocused.border", "mergeEditor.conflictingLines.background"),
     ("符号图标", "symbolIcon.classForeground", "sideBar.background"),
     ("树形缩进参考线", "tree.indentGuidesStroke", "sideBar.background"),
+    ("Markdown 代码块", "editor.foreground", "textCodeBlock.background"),
+    ("命令中心", "commandCenter.foreground", "commandCenter.background"),
+    ("命令中心调试态", "commandCenter.foreground", "commandCenter.debuggingBackground"),
+    ("命令中心调试悬停", "commandCenter.activeForeground", "commandCenter.debuggingBackground"),
 ]
 
 
