@@ -70,7 +70,7 @@ Node 校验器检查固定集合的缺失/未知键、合法 hex、两主题键�
 code --user-data-dir /tmp/sakura-preview-user --extensions-dir /tmp/sakura-preview-extensions --extensionDevelopmentPath . --new-window examples examples/preview.ts
 ```
 
-Windows 请将临时目录替换为自己的临时路径。依次选择两套 Sakura Macaron 主题，保持相同窗口尺寸和滚动位置，保存为 `images/screenshot-dark.png` 和 `images/screenshot-light.png`。截图证明样例的真实渲染，不代表全部 UI 的验收。
+Windows 请将临时目录替换为自己的临时路径。依次选择两套 Sakura Macaron 主题，保持相同窗口尺寸和滚动位置，保存为 `images/dark.png` 和 `images/light.png`。截图证明样例的真实渲染，不代表全部 UI 的验收。
 
 ## CI 与发布
 
@@ -78,4 +78,4 @@ CI 配置 Ubuntu/Windows、Node.js 22、Python 3.12，执行安装、完整验�
 
 打包前置钩子自动运行 `npm run verify`。`.vscodeignore` 排除 `src/`、`data/`、`scripts/`、`docs/` 和 `examples/`；README 引用的两张截图随包保留。发布前检查 VSIX 内容、版本号、最低版本兼容性，并人工批准发布。
 
-此次改动保留 package 版本 0.1.1，记录在 `CHANGELOG.md` 的 Unreleased；没有自动发布或打标签。`theme-gap-report.md` 是历史材料，不应用于当前覆盖率判定。
+此次改动保留 package 版本 0.1.1，记录在 `CHANGELOG.md` 的 Unreleased；没有自动发布或打标签。

@@ -8,13 +8,13 @@
 
 **夜樱**：暗梅紫的编辑器、深李色侧栏与浅藕紫状态栏（深梅字），搭配柔和粉雾正文与马卡龙低饱和强调色。关键字樱玫、函数杏橙、类型藤紫、字符串鼠尾草绿、数字奶油金、操作符兰紫——色相分散、区分清晰；表面提亮、正文压柔，长时间编码不刺眼。
 
-![Sakura Macaron Dark](images/screenshot-dark.png)
+![Sakura Macaron Dark](images/dark.png)
 
 ### Sakura Macaron Light
 
 **樱粉**：界面维持暖粉白底，文字按角色分四档——灰紫正文、梅紫标题/选中、兰紫悬停、玫瑰强调；语法改设暖色多档——玫红关键字、陶土函数、橄榄字符串、暗金数字、藤梅类型、肉桂常量，配莓红删除与鼠尾草新增，靠色相与明度双重差保持可区分。
 
-![Sakura Macaron Light](images/screenshot-light.png)
+![Sakura Macaron Light](images/light.png)
 
 截图来自 VS Code 1.140.0 的独立扩展开发窗口，使用仓库内 `examples/preview.ts`，不是概念渲染图。
 
