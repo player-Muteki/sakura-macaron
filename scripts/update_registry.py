@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from utf8_console import use_utf8_console
 
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -27,6 +28,7 @@ def update(vscode_path=None, output_dir=SCRIPTS.parent / "data"):
 
 
 def main():
+    use_utf8_console()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--vscode-path", type=Path)
     options = parser.parse_args()

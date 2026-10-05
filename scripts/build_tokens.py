@@ -13,6 +13,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from utf8_console import use_utf8_console
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEMES = os.path.join(HERE, "themes")
@@ -379,6 +380,7 @@ def build(kind):
 
 
 def main():
+    use_utf8_console()
     check = "--check" in sys.argv
     HEX = re.compile(r"^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$")
     for kind, fname in (("dark", "sakura-macaron-dark.json"), ("light", "sakura-macaron-light.json")):

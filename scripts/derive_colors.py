@@ -13,6 +13,7 @@ import argparse
 import hashlib
 from pathlib import Path
 from extract_registry import find_bundle, split_args as parse_arguments
+from utf8_console import use_utf8_console
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REG = {}
@@ -156,6 +157,7 @@ def build_anchors(kind):
 
 
 def main():
+    use_utf8_console()
     global REG, VAR2ID, NUM, RGBA_VAR
     parser = argparse.ArgumentParser(description="为固定注册表生成深浅色锚点；压缩符号仅支持已验证版本")
     parser.add_argument("--vscode-path")

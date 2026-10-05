@@ -11,6 +11,7 @@ import sys
 import argparse
 import hashlib
 from pathlib import Path
+from utf8_console import use_utf8_console
 
 BUNDLE_CANDIDATES = [
     os.environ.get("VSCODE_PATH", "") + "/out/vs/workbench/workbench.desktop.main.js",
@@ -85,27 +86,79 @@ def parse_obj(expr: str) -> dict:
     return out
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="显式更新固定版本的注册表快照；日常构建不需要 VS Code")
-    parser.add_argument("--vscode-path")
-    parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[1] / "data/registry.json")
-    options = parser.parse_args()
-    bundle = find_bundle(options.vscode_path)
-    src = open(bundle, encoding="utf8", errors="ignore").read()
-    match = re.search(r"function ([\w$]+)\([^)]*\)\{return [\w$]+\.registerColor\(", src)
-    if not match:
-        sys.exit("无法识别 registerColor 包装函数；请更新解析器，未写入快照")
-    helper = match.group(1)
+HELPER_RE = re.compile(r"function ([\w$]+)\([^)]*\)\{return [\w$]+\.registerColor\(")
 
-    registry = {}
+# 各版本的压缩器对同一个 registerColor 会留下不同形状的调用点：
+# 本模块内直接 `wrapper("id", ...)`，跨模块则走导出别名 `(0, MOD.ALIAS)("id", ...)`。
+# 只扫前者会在旧版 bundle 上静默漏掉大半注册，因此两种形状都要认。
+CALL_FORMS_TMPL = [
+    r"(?<![\w$])(?:[\w$]+=)?{name}\(",
+    r"(?<![\w$])(?:[\w$]+=)?\(0,\s*[\w$]+\.{name}\)\(",
+]
+
+# 1.80 已有 669 个注册色；低于此量级说明调用点形状没认全，而不是 VS Code 真的少了键
+MIN_REGISTRATION_IDS = 600
+
+# 真实注册的参数总量很小；给扫描设上限，既避免无关同名调用把参数扫到文件末尾，
+# 也让"扫不到闭合括号"的调用自然落选
+ARGUMENT_SCAN_LIMIT = 4000
+
+# 只在包装函数体结束处取紧跟其后的导出绑定（`…}e.$Yu=g;`）：压缩后的短名会在其它模块里
+# 被反复复用，按名字或按窗口搜别名会把无关函数当成别名，既拖慢扫描又注入垃圾键
+ALIAS_PROXIMITY = 80
+
+
+def export_aliases(src: str, body_end: int, helper: str) -> list[str]:
+    """包装函数定义之后紧跟的导出名；没有导出绑定时返回空。"""
+    match = re.match(r"[\w$]+\.([\w$]+)\s*=\s*" + re.escape(helper) + r"(?![\w$(=])",
+                     src[body_end:body_end + ALIAS_PROXIMITY])
+    return [match.group(1)] if match else []
+
+
+def is_registration_call(raw: str) -> bool:
+    """把真实注册和同名压缩函数的无关调用分开。
+
+    默认值可以是 `{dark:…}` 对象、压缩后的变量名，也可以是 `"#00000000"` 这样的
+    字面量，所以这里只排除明显不是颜色注册的空参数调用。
+    """
+    return raw not in ("", "void 0", "undefined")
+
+
+def call_pattern(names: list[str]) -> re.Pattern:
+    """把各调用形状合成一个模式；分支必须整体括起来，否则后缀只绑到最后一个分支。"""
+    branches = "|".join(
+        tmpl.format(name=re.escape(n)) for n in names for tmpl in CALL_FORMS_TMPL)
+    return re.compile(r"(" + branches + r")\s*\"([a-zA-Z][a-zA-Z0-9_.]*)\"\s*,")
+
+
+def parse_registrations(src: str) -> dict | None:
+    """扫描 bundle 里所有 registerColor 调用点，返回 cid -> 注册条目。"""
+    definitions = list(HELPER_RE.finditer(src))
+    if not definitions:
+        return None
+    names: list[str] = []
+    for definition in definitions:
+        helper = definition.group(1)
+        if helper not in names:
+            names.append(helper)
+        brace = src.find("}", definition.start())
+        if brace < 0:
+            continue
+        for alias in export_aliases(src, brace + 1, helper):
+            if alias not in names:
+                names.append(alias)
+    call_re = call_pattern(names)
+
+    registry: dict[str, dict] = {}
     # 有的注册没有赋值给局部变量；变量名可能含 `$`，因此用 [\w$]+
-    for m in re.finditer(r"(?<![\w$])(?:([\w$]+)=)?" + re.escape(helper) + r'\("([a-zA-Z0-9_.]+)",', src):
-        var, cid = m.group(1), m.group(2)
-        args = split_args(src, m.end())
-        if not args:
+    for m in call_re.finditer(src):
+        var = re.match(r"([\w$]+)=", m.group(1))
+        cid = m.group(2)
+        args = split_args(src[m.end():m.end() + ARGUMENT_SCAN_LIMIT], 0)
+        if not args or not is_registration_call(args[0]):
             continue
         raw = args[0]
-        entry = {"var": var, "raw": raw, "provenance": "registration"}
+        entry = {"var": var.group(1) if var else None, "raw": raw, "provenance": "registration"}
         if raw.startswith("{"):
             obj = parse_obj(raw)
             entry["dark"] = obj.get("dark") or obj.get("light") or obj.get("hcDark") or ""
@@ -116,6 +169,22 @@ def main() -> None:
             entry["dark"] = raw
             entry["light"] = raw
         registry[cid] = entry
+    return registry
+
+
+def main() -> None:
+    use_utf8_console()
+    parser = argparse.ArgumentParser(description="显式更新固定版本的注册表快照；日常构建不需要 VS Code")
+    parser.add_argument("--vscode-path")
+    parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[1] / "data/registry.json")
+    parser.add_argument("--allow-low-yield", action="store_true",
+                        help="即使注册色数量异常偏低也写出快照，仅供探索，不要用于固定基准")
+    options = parser.parse_args()
+    bundle = find_bundle(options.vscode_path)
+    src = open(bundle, encoding="utf8", errors="ignore").read()
+    registry = parse_registrations(src)
+    if registry is None:
+        sys.exit("无法识别 registerColor 包装函数；请更新解析器，未写入快照")
 
     # workbench CSS 里引用的 --vscode-* 变量（补充注册表未覆盖到的键）
     css_ids = set()
@@ -150,6 +219,11 @@ def main() -> None:
 
     if not registry:
         sys.exit("注册表为空；未写入快照")
+    counted = sum(1 for e in registry.values() if e["provenance"] == "registration")
+    if counted < MIN_REGISTRATION_IDS and not options.allow_low_yield:
+        sys.exit(f"只识别出 {counted} 个注册色，低于 {MIN_REGISTRATION_IDS} 的量级下限；"
+                 f"该版本 bundle 的调用形状很可能没认全，未写入快照。"
+                 f"确认无误后用 --allow-low-yield 显式放行（仅供探索）")
     app = Path(bundle).parents[3]
     package = json.loads((app / "package.json").read_text(encoding="utf-8"))
     product = json.loads((app / "product.json").read_text(encoding="utf-8"))
@@ -166,7 +240,8 @@ def main() -> None:
     out = options.output
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
-    print(f"注册表 {len(registry)} 个颜色 id -> {out}")
+    print(f"注册表 {len(registry)} 个颜色 id"
+          f"（registration {counted}，css-reference {len(registry) - counted}）-> {out}")
 
 
 if __name__ == "__main__":

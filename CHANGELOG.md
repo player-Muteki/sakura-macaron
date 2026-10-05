@@ -2,6 +2,13 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+- **Windows 与最低版本兼容性实测**：在 Windows 11 上用独立用户/扩展目录安装 VSIX，分别在 VS Code **1.80.2**（manifest 声明的最低版本）和 **1.140.0** 下确认两套主题注册、深浅色渲染正常、渲染日志无主题相关告警；同时验证 `npm run verify` 与 `npm run package` 在本机通过。按 1.80.2 源码的 669 个注册色对账：本主题 992 键中 660 个生效、332 个为该版本尚未注册的键（静默忽略），另有 9 个 1.80 注册而 1.140 已移除的旧键取编辑器默认值，实测仅 `scm.providerBorder` 与 `statusBar.offlineBackground`/`Foreground` 有肉眼可见差异。README 的“最低版本尚未实测”声明已替换为上述结论。
+- **统一 UTF-8 控制台输出**：Python 脚本入口调用新增的 `scripts/utf8_console.py`，Node 校验入口调用新增的 `scripts/utf8-console.mjs`，在 Windows 上先把控制台输出代码页切到 65001 并在进程退出后还原原代码页。修复英文区域设置下控制台代码页为 cp1252 时 `check_contrast.py` 打印中文抛 `UnicodeEncodeError`，以及代码页 936 下 Node 与 Python 输出编码不一致造成的乱码；CI 中显式设置的 `PYTHONIOENCODING=utf-8` 由此从必需项降级为冗余保险，故保留不动。
+- **注册表提取适配旧版 bundle**：`extract_registry.py` 原先只认模块内 `wrapper("id", …)` 直接调用，旧版压缩产物把同一函数导出为别名并以 `(0, MOD.ALIAS)("id", …)` 跨模块调用，导致 1.80.2 上只识别出 228 个注册色（该版本源码实际有 669 个）却仍正常写出快照。现在两种调用形状都识别；导出别名只取函数体闭合括号后紧邻的绑定，避免压缩短名在其它模块被复用时把 `div`、`span`、`caret` 一类无关调用当成注册；参数扫描加 4000 字符上限，无关同名调用不再把解析拖到文件末尾。
+- **快照写出前加合理性断言**：注册色数量低于量级下限（600，1.80 实际有 669 个）时直接失败而不是写出半套基准，探索性低产出可用新增的 `--allow-low-yield` 显式放行；提取结果同时报告 `registration` 与 `css-reference` 分项数量。1.140.0 基准重新提取后与已提交快照逐字节一致。
+
 ## [0.2.3] - 2026-10-04
 
 - 更换真实重截的深/浅主题截图，文件更名为 `images/dark.png`、`images/light.png`，README 与维护指南链接同步。

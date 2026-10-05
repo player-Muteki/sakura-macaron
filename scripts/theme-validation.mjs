@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { useUtf8Console } from './utf8-console.mjs';
 
 export const HEX = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -108,6 +109,7 @@ export function statistics(theme) {
 }
 
 export function runCheck(structure = false) {
+  useUtf8Console();
   try {
     const { asJson, registry, source, themes } = readInputs();
     const report = { ...checkColors(themes, registry), source };

@@ -10,6 +10,7 @@
 | `data/anchors.json` | 分开的深浅默认锚点，以及各自未能解析的键 |
 | `themes/*.json` | 供 VS Code 加载的最终生成主题 |
 | `scripts/theme-validation.mjs` | 两个 Node 校验入口共用的实现 |
+| `scripts/utf8_console.py`、`scripts/utf8-console.mjs` | Windows 控制台按 UTF-8 输出并在进程退出后还原原代码页 |
 | `scripts/check_contrast.py` | UI 配对、透明叠加模型、六种语法背景和豁免理由 |
 | `scripts/tests/` | 校验 CLI、表达式解析、快照更新、构建和对比度回归测试 |
 | `examples/`、`images/` | 可复现的截图样例和实际截图 |
@@ -36,6 +37,8 @@ Light 的界面保持樱粉浅底，正文 `#6B5346`，语法角色使用易于�
 - Dark 锚点解析 837 项，Light 836 项；未解析项记录在 `unresolved` 中，由显式颜色或补色规则处理。这不表示当前主题缺键。
 - 两个快照的来源元数据必须一致。常规构建完全读取仓库快照，不扫描本机编辑器，也不访问网络。
 - 默认表达式仍依赖已验证 bundle 的压缩符号，所以锚点解析器对 commit 设置了硬限制；不能简单删除限制来“支持最新版”。
+- 提取器同时认两种压缩调用形状：模块内直接 `wrapper("id", …)`，跨模块走导出别名 `(0, MOD.ALIAS)("id", …)`。旧版 bundle 以后者为主，只认前者会静默漏掉大半注册（1.80.2 上曾只抓到 228/669 个）。写出快照前还有量级下限断言，注册色少于 600 个即失败；确认无误的探索性提取可用 `--allow-low-yield` 放行，`registry:update` 包装脚本不会带这个参数，因此正式更新无法绕过。
+- 已知残余限制：导出别名按“函数体闭合括号后紧邻的绑定”识别，跨模块复用同一压缩短名时仍可能混入无关键（1.80.2 实测 9 个）。这需要在 bundle 上做 AMD 模块作用域分析才能根除，而固定基准 1.140.0 的提取结果与已提交快照逐字节一致，所以暂不实现。升级到其它 commit 时先看提取报告的分项计数，再逐项复核可疑新增键。
 
 ```bash
 npm run registry:update -- --vscode-path "/path/to/VS Code/resources/app"
@@ -44,6 +47,25 @@ npm run registry:update -- --vscode-path "/path/to/VS Code/resources/app"
 此路径应包含 `package.json`、`product.json`、`out/`，不是 `code` 可执行文件。也可以用 `VSCODE_PATH` 指定。包装脚本先在临时目录执行提取和锚点解析，两者成功后才写入 `data/`；提取、解析或版本不匹配不会留下半套新快照。写回是两个文件顺序写入，不是文件系统跨文件事务；意外断电后应检查两份来源是否一致。
 
 升级到不同 commit 时：先在 `build/` 等临时输出目录试提取，检查新增/删除项和 CSS 误判，审查压缩函数及变量映射，补解析器回归用例，然后才扩展版本支持、更新快照及设计源。独立调用 `extract_registry.py` / `derive_colors.py` 时务必显式设置 `--output`，避免跳过包装脚本的失败保护。
+
+## 最低版本兼容检查
+
+manifest 声明 `^1.80.0`，因此每次改动主题键集后应确认旧版本仍然安全。键集对照只依赖旧版安装包的 `resources/app`（解压即可，不必真正安装或启动），渲染验证才需要跑起旧版：
+
+```bash
+python scripts/extract_registry.py --vscode-path "/path/to/vscode-1.80/resources/app" --output build/registry-1.80.json
+```
+
+把结果的 `provenance: registration` 键集与 `themes/*.json` 对照，可分三类：**旧版已注册且主题覆盖**（正常生效）；**旧版未注册**（该版本静默忽略，不告警，不必删除）；**旧版注册但 1.140 基准已移除、主题不覆盖**（旧版取自己的默认值，是唯一可能肉眼不一致的一类）。当前结论：992 个键中 660 个在 1.80.2 生效、332 个被静默忽略，第三类 9 个键里只有 `scm.providerBorder` 与 `statusBar.offlineBackground`/`statusBar.offlineForeground` 有可见差异。需要修复应显式补旧键并在对比度检查中给出背景，而不是抬高固定基准。
+
+渲染验证需要跑起旧版，用独立配置目录，避免污染日常编辑器。先装入 VSIX，再用同一组目录启动：
+
+```bash
+<path>/VSCode-win32-x64-1.80.2/bin/code.cmd --user-data-dir build/compat-user --extensions-dir build/compat-ext --install-extension sakura-macaron-<版本>.vsix
+<path>/VSCode-win32-x64-1.80.2/bin/code.cmd --user-data-dir build/compat-user --extensions-dir build/compat-ext --new-window examples
+```
+
+装好后检查扩展目录出现 `player-muteki.sakura-macaron-<版本>`，在窗口里切换两套主题，并核对 `build/compat-user/logs/*/window1/renderer.log` 无主题相关告警。截图只证明样例界面，不能替代上述键集对照。
 
 ## 校验边界与报告
 
@@ -74,8 +96,8 @@ Windows 请将临时目录替换为自己的临时路径。依次选择两套 Sa
 
 ## CI 与发布
 
-CI 配置 Ubuntu/Windows、Node.js 22、Python 3.12，执行安装、完整验证、离线重建及产物差异检查；Linux 额外打包并上传 VSIX。配置矩阵不等于本地已经执行过 Windows CI。
+CI 配置 Ubuntu/Windows、Node.js 22、Python 3.12，执行安装、完整验证、离线重建及产物差异检查；Linux 额外打包并上传 VSIX。配置矩阵不等于本地已经执行过 Windows CI——当前 Windows 已在实机跑通完整验证与 `npm run package`，但 VSIX 产物仍只在 Linux 上由 CI 上传。
 
 打包前置钩子自动运行 `npm run verify`。`.vscodeignore` 排除 `src/`、`data/`、`scripts/`、`docs/` 和 `examples/`；README 引用的两张截图随包保留。发布前检查 VSIX 内容、版本号、最低版本兼容性，并人工批准发布。
 
-此次改动保留 package 版本 0.1.1，记录在 `CHANGELOG.md` 的 Unreleased；没有自动发布或打标签。
+未发布的改动记录在 `CHANGELOG.md` 的 Unreleased 段落，`package.json` 的 `version` 保持上一次发布的值；只有决定发版时才递增版本号并落 tag，本仓库不做自动发布或打标签。

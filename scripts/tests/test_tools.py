@@ -28,6 +28,41 @@ class RegistryParserTests(unittest.TestCase):
         arguments = parser.split_args('{dark: nested("a,b", .5), light: "#fff"}, "description");other(1,2)', 0)
         self.assertEqual(arguments, ['{dark: nested("a,b", .5), light: "#fff"}', '"description"'])
 
+    def test_both_minified_registration_shapes_are_recognised(self):
+        """旧版 bundle 里 registerColor 同时以本地包装和跨模块别名两种形状出现，
+        只认前者会在 1.80 上静默漏掉三分之二的注册色。"""
+        parser = load_script("extract_registry")
+        bundle = (
+            'const i=new a;function g(M,R,O){return i.registerColor(M,R,O)}e.$Yu=g;'
+            'e.$1u=g("foreground",{dark:"#CCCCCC",light:"#616161"},I.localize(0,null));'
+            'e.$sub=(0,C.$Yu)("diffEditor.move.border",{dark:"#8b8b8b"},(0,t.localize)(0,null));'
+        )
+        self.assertEqual(sorted(parser.parse_registrations(bundle)),
+                         ["diffEditor.move.border", "foreground"])
+
+    def test_unrelated_calls_of_a_reused_minified_name_are_dropped(self):
+        """压缩后的短名会在其它模块里反复复用；别名只能在包装函数定义点附近绑定，
+        否则会把 DOM 辅助函数之类当成注册表，既拖慢扫描又注入垃圾键。"""
+        parser = load_script("extract_registry")
+        bundle = (
+            'function g(M,R,O){return i.registerColor(M,R,O)}e.$Yu=g;'
+            'e.$1u=g("foreground",{dark:"#CCCCCC",light:"#616161"},I.localize(0,null));'
+            'this.a.style.display="inline",t.$eO(this.a,g("span",void 0,"("));'
+            'function g(M,R,O){return dom.append(M,R,O)}e.$zz=g;'
+            'e.$9q=(0,Q.$zz)("div",{class:"x"},(0,t.localize)(0,null));'
+        )
+        self.assertEqual(list(parser.parse_registrations(bundle)), ["foreground"])
+
+    def test_plain_string_defaults_and_descriptions_are_still_registrations(self):
+        parser = load_script("extract_registry")
+        bundle = (
+            'function g(M,R,O){return i.registerColor(M,R,O)}e.$Yu=g;'
+            'e.$a=g("settings.dropdownBackground","#00000000",d(4352,null));'
+            'e.$b=g("debugConsole.errorForeground",f4,"Foreground color for errors");'
+        )
+        self.assertEqual(sorted(parser.parse_registrations(bundle)),
+                         ["debugConsole.errorForeground", "settings.dropdownBackground"])
+
     def test_escaped_quotes_and_nested_arrays(self):
         parser = load_script("extract_registry")
         self.assertEqual(parser.split_args(r'"a\",b", [foo(1,2), {light:"#fff"}])tail', 0),

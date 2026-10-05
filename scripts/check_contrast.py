@@ -11,6 +11,7 @@ import os
 import sys
 import argparse
 from pathlib import Path
+from utf8_console import use_utf8_console
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEMES = os.path.join(HERE, "themes")
@@ -238,6 +239,7 @@ def audit(theme, threshold=4.5):
 
 
 def main():
+    use_utf8_console()
     parser = argparse.ArgumentParser(description="静态对比度审计：正文 4.5:1、图标 3:1；不是完整 WCAG 认证")
     parser.add_argument("--threshold", type=float, default=4.5)
     parser.add_argument("--strict", action="store_true")

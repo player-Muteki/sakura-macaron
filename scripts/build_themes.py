@@ -13,6 +13,7 @@ import sys
 import argparse
 from pathlib import Path
 from build_tokens import build as build_tokens
+from utf8_console import use_utf8_console
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEMES = os.path.join(HERE, "themes")
@@ -614,6 +615,7 @@ def build(theme_path, is_dark):
 
 
 def main():
+    use_utf8_console()
     parser = argparse.ArgumentParser(description="从固定快照与 src 设计源离线生成完整主题")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--source-dir", type=Path, default=Path(HERE) / "src")
