@@ -1,0 +1,73 @@
+name: Release
+
+# 推送 v<版本号> 标签即产出 GitHub Release；VS Marketplace 上架始终是本地人工步骤
+# （VSCE_PAT 只在本机），所以这里不出现任何发布凭据。
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 校验并创建 GitHub Release
+    runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts
+      - name: 标签必须与 package.json 的版本一致
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_NAME#v}" != "$VERSION" ]; then
+            echo "标签 ${GITHUB_REF_NAME} 与 package.json 的 $VERSION 不一致，停止发布" >&2
+            exit 1
+          fi
+      - name: 完整验证与打包
+        run: |
+          npm run verify
+          npm run package
+      - name: 从 CHANGELOG 抽取本版本说明
+        run: |
+          mkdir -p build
+          python - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          heading = f"## [{version}]"
+          lines = Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+          try:
+              start = next(i for i, line in enumerate(lines) if line.startswith(heading))
+          except StopIteration:
+              sys.exit(f"CHANGELOG.md 没有 {heading} 段落；先补发布记录再打标签")
+          end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## [")), len(lines))
+          body = "\n".join(lines[start + 1:end]).strip()
+          footer = (f"安装：`code --install-extension sakura-macaron-{version}.vsix`，"
+                    "然后 `Ctrl+K Ctrl+T` 切换 Sakura Macaron Dark / Light")
+          notes = f"{body}\n\n{footer}\n"
+          Path("build/release-notes.md").write_text(notes, encoding="utf-8", newline="\n")
+          print(f"Release notes taken from {heading}: {len(notes.encode('utf-8'))} bytes")
+          PY
+      - name: 创建 GitHub Release 并附 VSIX
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VSIX="sakura-macaron-$(node -p "require('./package.json').version").vsix"
+          test -f "$VSIX" || { echo "缺少 $VSIX" >&2; exit 1; }
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file build/release-notes.md \
+            --target "$GITHUB_SHA" \
+            "$VSIX"

@@ -67,6 +67,7 @@
     "test": "node --test scripts/tests/validation.test.mjs && python -m unittest discover -s scripts/tests -p test_*.py",
     "verify": "npm run check && npm run check:generated && npm run check:contrast && npm test",
     "package": "vsce package --no-dependencies",
+    "publish:marketplace": "vsce publish --no-dependencies",
     "vscode:prepublish": "npm run verify"
   },
   "devDependencies": {

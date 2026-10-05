@@ -11,6 +11,8 @@
 | `themes/*.json` | 供 VS Code 加载的最终生成主题 |
 | `scripts/theme-validation.mjs` | 两个 Node 校验入口共用的实现 |
 | `scripts/utf8_console.py`、`scripts/utf8-console.mjs` | Windows 控制台按 UTF-8 输出并在进程退出后还原原代码页 |
+| `.github/workflows/ci.yml` | main 推送与 PR 的双系统自检；Linux 额外打包并上传 VSIX 构件 |
+| `.github/workflows/release.yml` | 标签推送后重跑验证与打包，产出挂 VSIX 的 GitHub Release |
 | `scripts/check_contrast.py` | UI 配对、透明叠加模型、六种语法背景和豁免理由 |
 | `scripts/tests/` | 校验 CLI、表达式解析、快照更新、构建和对比度回归测试 |
 | `examples/`、`images/` | 可复现的截图样例和实际截图 |
@@ -100,4 +102,18 @@ CI 配置 Ubuntu/Windows、Node.js 22、Python 3.12，执行安装、完整验�
 
 打包前置钩子自动运行 `npm run verify`。`.vscodeignore` 排除 `src/`、`data/`、`scripts/`、`docs/` 和 `examples/`；README 引用的两张截图随包保留。发布前检查 VSIX 内容、版本号、最低版本兼容性，并人工批准发布。
 
-未发布的改动记录在 `CHANGELOG.md` 的 Unreleased 段落，`package.json` 的 `version` 保持上一次发布的值；只有决定发版时才递增版本号并落 tag，本仓库不做自动发布或打标签。
+### 发版流程
+
+未发布的改动记录在 `CHANGELOG.md` 的 Unreleased 段落，`package.json` 的 `version` 保持上一次发布的值。决定发版时按顺序做：
+
+1. `package.json` 递增版本号，`CHANGELOG.md` 的 `## [Unreleased]` 改为 `## [x.y.z] - 日期`。两处必须同时改，`release.yml` 会拒绝标签与 `package.json` 不一致的推送。
+2. `npm run verify` 与 `npm run package`，核对 VSIX 内的版本、主题清单和文件大小。
+3. 提交 `chore: 发布 x.y.z（…）`，打**轻量**标签 `vx.y.z`（与既有标签一致），推送 `main` 和标签。
+
+推送标签后 `release.yml` 会在 Linux 上重跑完整验证与打包，从 `CHANGELOG.md` 取该版本段落作为说明，创建 GitHub Release 并挂上 VSIX。这一步不需要任何密钥，只用 `GITHUB_TOKEN`。CHANGELOG 缺该版本段落、或标签与 `package.json` 版本不符，都会在创建 Release 前失败退出，不会产出空白页面。
+
+### 上架 VS Marketplace
+
+上架始终是本地人工步骤：`npm run publish:marketplace`（即 `vsce publish --no-dependencies`，会先经 `vscode:prepublish` 跑完整验证）。它需要 Marketplace 的 Personal Access Token，通过 `VSCE_PAT` 环境变量或 `vsce login` 交互提供；凭据不写入仓库，也不放进 CI secret，因此工作流里不会出现上架动作。
+
+不进 CI 的原因是发布不可逆：市场版本一经发布只能下架，不能删除。标签一旦推送就会被 CI 建 Release，所以标签本身要慎打；Marketplace 这一步保留人工确认。

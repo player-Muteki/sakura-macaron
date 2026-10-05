@@ -2,6 +2,10 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+- **发版通路**：新增 `.github/workflows/release.yml`，推送 `v*` 标签时在 Linux 重跑完整验证与打包，从 `CHANGELOG.md` 取该版本段落创建 GitHub Release 并挂上 VSIX；标签与 `package.json` 版本不一致或缺少对应 CHANGELOG 段落时在创建前失败。同时新增本地脚本 `npm run publish:marketplace`（`vsce publish --no-dependencies`，需自备 `VSCE_PAT`）——上架 Marketplace 不可逆，因此保留为人工步骤，不进 CI。维护指南补《发版流程》与《上架 VS Marketplace》两节。
+
 ## [0.2.4] - 2026-10-05
 
 - **Windows 与最低版本兼容性实测**：在 Windows 11 上用独立用户/扩展目录安装 VSIX，分别在 VS Code **1.80.2**（manifest 声明的最低版本）和 **1.140.0** 下确认两套主题注册、深浅色渲染正常、渲染日志无主题相关告警；同时验证 `npm run verify` 与 `npm run package` 在本机通过。按 1.80.2 源码的 669 个注册色对账：本主题 992 键中 660 个生效、332 个为该版本尚未注册的键（静默忽略），另有 9 个 1.80 注册而 1.140 已移除的旧键取编辑器默认值，实测仅 `scm.providerBorder` 与 `statusBar.offlineBackground`/`Foreground` 有肉眼可见差异。README 的“最低版本尚未实测”声明已替换为上述结论。
