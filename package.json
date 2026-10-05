@@ -2,7 +2,7 @@
   "name": "sakura-macaron",
   "displayName": "Sakura Macaron",
   "description": "樱花马卡龙配色主题 — 深色夜樱与亮色樱粉的完整独立主题，马卡龙低饱和护眼取向。固定基准覆盖 992 个工作台颜色键、80 条 TextMate 规则与 94 项语义高亮，含 Modern UI、AI Chat、Git、终端、Diff、调试与测试配色。",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "player-muteki",
   "license": "MIT",
   "engines": {
